@@ -220,15 +220,6 @@ h3 {
   background: var(--soft);
 }
 
-.button[aria-disabled="true"] {
-  cursor: default;
-}
-
-.button[aria-disabled="true"]:hover {
-  border-color: #cbd8dc;
-  transform: none;
-}
-
 .button.small {
   min-height: 36px;
   padding: 0 12px;
