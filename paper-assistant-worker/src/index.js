@@ -519,6 +519,15 @@ function extractAnswer(result) {
   return "";
 }
 
+function normalizeSymbolKinds(answer) {
+  return answer
+    .replace(/两个主要类[:：]\s*`?dem_to_check_matrix`?\s*和\s*`?BPDecoder`?/g, "一个函数 `dem_to_check_matrix` 和一个类 `BPDecoder`")
+    .replace(/`dem_to_check_matrix`类/g, "`dem_to_check_matrix` 函数")
+    .replace(/dem_to_check_matrix类/g, "dem_to_check_matrix 函数")
+    .replace(/`dem_to_check_matrix` 的类/g, "`dem_to_check_matrix` 函数")
+    .replace(/dem_to_check_matrix 的类/g, "dem_to_check_matrix 函数");
+}
+
 async function handleChat(request, env) {
   const headers = corsHeaders(request, env);
   let body;
@@ -559,7 +568,7 @@ async function handleChat(request, env) {
 
   try {
     const result = await env.AI.run(model, { messages, max_tokens: 700 });
-    const answer = extractAnswer(result).trim();
+    const answer = normalizeSymbolKinds(extractAnswer(result).trim());
     if (!answer) throw new Error("Empty model response.");
 
     return json(
