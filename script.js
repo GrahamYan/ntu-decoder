@@ -1,420 +1,553 @@
 const state = {
   family: "surface",
-  mode: "transfer",
-  target: 19,
-  steps: 1200,
-  density: 8,
-  seed: 7,
-  selected: { x: 4, y: 4 },
+  instanceId: "surface-7",
+  view: "syndrome",
+  errorCount: 3,
+  seed: 11,
+  selected: { row: 3, col: 3 },
 };
 
-const families = {
+const codeFamilies = {
   surface: {
-    sourceLabel: "d = 7",
-    sourceSize: 7,
-    targets: [
-      { label: "d = 11", value: 11 },
-      { label: "d = 15", value: 15 },
-      { label: "d = 19", value: 19 },
-      { label: "d = 23", value: 23 },
-      { label: "d = 25", value: 25 },
+    name: "Rotated surface code",
+    instances: [
+      { id: "surface-7", n: 49, k: 1, d: 7, rows: 7, cols: 7, rounds: 7 },
+      { id: "surface-11", n: 121, k: 1, d: 11, rows: 11, cols: 11, rounds: 11 },
+      { id: "surface-19", n: 361, k: 1, d: 19, rows: 19, cols: 19, rounds: 19 },
+      { id: "surface-25", n: 625, k: 1, d: 25, rows: 25, cols: 25, rounds: 25 },
     ],
-    targetLabel(value) {
-      return `d = ${value}`;
-    },
-    baseDistance: 7,
-    maxStep: 5000,
+    motif: "planar local stabilizer neighborhood",
   },
   bb: {
-    sourceLabel: "[[72,12,6]]",
-    sourceSize: 6,
-    targets: [{ label: "[[144,12,12]]", value: 12 }],
-    targetLabel() {
-      return "[[144,12,12]]";
-    },
-    baseDistance: 6,
-    maxStep: 5000,
+    name: "Bivariate bicycle code",
+    instances: [
+      { id: "bb-72", n: 72, k: 12, d: 6, rows: 6, cols: 12, rounds: 6 },
+      { id: "bb-144", n: 144, k: 12, d: 12, rows: 12, cols: 12, rounds: 12 },
+    ],
+    motif: "cyclic polynomial Tanner neighborhood",
   },
 };
 
 const els = {
-  targetScale: document.querySelector("#target-scale"),
-  sourceLabel: document.querySelector("#source-label"),
-  targetLabel: document.querySelector("#target-label"),
-  sourceLattice: document.querySelector("#source-lattice"),
-  targetLattice: document.querySelector("#target-lattice"),
-  chart: document.querySelector("#curve-chart"),
-  stepSlider: document.querySelector("#step-slider"),
-  noiseSlider: document.querySelector("#noise-slider"),
-  stepReadout: document.querySelector("#step-readout"),
-  accuracyReadout: document.querySelector("#accuracy-readout"),
-  lerReadout: document.querySelector("#ler-readout"),
-  computeReadout: document.querySelector("#compute-readout"),
-  stateReadout: document.querySelector("#state-readout"),
-  advanceBtn: document.querySelector("#advance-btn"),
+  codeInstance: document.querySelector("#code-instance"),
+  errorSlider: document.querySelector("#error-slider"),
+  layoutLabel: document.querySelector("#layout-label"),
+  detectorLabel: document.querySelector("#detector-label"),
+  viewLabel: document.querySelector("#view-label"),
+  codeLattice: document.querySelector("#code-lattice"),
+  detectorLattice: document.querySelector("#detector-lattice"),
+  perceptionMap: document.querySelector("#perception-map"),
+  codeReadout: document.querySelector("#code-readout"),
+  nReadout: document.querySelector("#n-readout"),
+  kReadout: document.querySelector("#k-readout"),
+  dReadout: document.querySelector("#d-readout"),
+  inputReadout: document.querySelector("#input-readout"),
+  syndromeReadout: document.querySelector("#syndrome-readout"),
   resampleBtn: document.querySelector("#resample-btn"),
+  centerBtn: document.querySelector("#center-btn"),
   copyBibtex: document.querySelector("#copy-bibtex"),
   bibtex: document.querySelector("#bibtex"),
 };
 
+function labelFor(instance) {
+  return `[[${instance.n},${instance.k},${instance.d}]]`;
+}
+
+function currentInstance() {
+  return codeFamilies[state.family].instances.find((item) => item.id === state.instanceId);
+}
+
+function centerSelection(instance) {
+  state.selected = {
+    row: Math.floor(instance.rows / 2),
+    col: Math.floor(instance.cols / 2),
+  };
+}
+
+function makeSvg(name, attrs = {}) {
+  const element = document.createElementNS("http://www.w3.org/2000/svg", name);
+  Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
+  return element;
+}
+
 function rng(seed) {
-  let x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
+  let value = seed >>> 0;
+  return () => {
+    value = (1664525 * value + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
 }
 
-function eventSet(size, density, seed) {
-  const count = Math.max(2, Math.round((size * size * density) / 100));
-  const events = new Set();
-  let cursor = seed * 17 + size;
-  while (events.size < count) {
-    cursor += 1;
-    const x = Math.floor(rng(cursor) * size);
-    const y = Math.floor(rng(cursor + 81) * size);
-    events.add(`${x},${y}`);
-  }
-  return events;
+function positionKey(row, col) {
+  return `${row},${col}`;
 }
 
-function motifFor(x, y, size) {
-  return [
-    [x, y],
-    [x + 1, y],
-    [x - 1, y],
-    [x, y + 1],
-    [x, y - 1],
-    [x + 1, y + 1],
-  ].filter(([px, py]) => px >= 0 && py >= 0 && px < size && py < size);
-}
-
-function drawLattice(svg, options) {
-  const { size, family, selected, density, seed, compact } = options;
-  const width = 440;
-  const height = 330;
-  const pad = compact ? 54 : 34;
-  const plotW = width - pad * 2;
-  const plotH = height - pad * 2;
-  const step = Math.min(plotW, plotH) / Math.max(1, size - 1);
-  const offsetX = (width - step * (size - 1)) / 2;
-  const offsetY = (height - step * (size - 1)) / 2;
-  const events = eventSet(size, density, seed);
-  const motif = motifFor(selected.x, selected.y, size);
-  const motifKeys = new Set(motif.map(([x, y]) => `${x},${y}`));
-  const pointRadius = Math.max(3.2, Math.min(10, step * 0.25));
-
-  svg.innerHTML = "";
-
-  if (family === "bb") {
-    const torus = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    torus.setAttribute("x", offsetX - 13);
-    torus.setAttribute("y", offsetY - 13);
-    torus.setAttribute("width", step * (size - 1) + 26);
-    torus.setAttribute("height", step * (size - 1) + 26);
-    torus.setAttribute("rx", 18);
-    torus.setAttribute("class", "bb-plane");
-    svg.appendChild(torus);
-  }
-
-  for (let i = 0; i < size; i += 1) {
-    const x1 = offsetX + i * step;
-    const y1 = offsetY;
-    const x2 = offsetX + i * step;
-    const y2 = offsetY + step * (size - 1);
-    const vLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    vLine.setAttribute("x1", x1);
-    vLine.setAttribute("y1", y1);
-    vLine.setAttribute("x2", x2);
-    vLine.setAttribute("y2", y2);
-    vLine.setAttribute("class", "grid-line");
-    svg.appendChild(vLine);
-
-    const hLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    hLine.setAttribute("x1", offsetX);
-    hLine.setAttribute("y1", offsetY + i * step);
-    hLine.setAttribute("x2", offsetX + step * (size - 1));
-    hLine.setAttribute("y2", offsetY + i * step);
-    hLine.setAttribute("class", "grid-line");
-    svg.appendChild(hLine);
-  }
-
-  motif.forEach(([x, y]) => {
-    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", offsetX + x * step - step * 0.38);
-    rect.setAttribute("y", offsetY + y * step - step * 0.38);
-    rect.setAttribute("width", step * 0.76);
-    rect.setAttribute("height", step * 0.76);
-    rect.setAttribute("rx", 5);
-    rect.setAttribute("class", "motif");
-    svg.appendChild(rect);
+function sampleErrors(instance) {
+  const random = rng(state.seed + instance.n * 13 + state.errorCount * 97);
+  const errors = new Map();
+  const selectedKey = positionKey(
+    Math.min(instance.rows - 1, Math.max(0, state.selected.row)),
+    Math.min(instance.cols - 1, Math.max(0, state.selected.col)),
+  );
+  errors.set(selectedKey, {
+    row: Math.min(instance.rows - 1, Math.max(0, state.selected.row)),
+    col: Math.min(instance.cols - 1, Math.max(0, state.selected.col)),
   });
 
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const key = `${x},${y}`;
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      c.setAttribute("cx", offsetX + x * step);
-      c.setAttribute("cy", offsetY + y * step);
-      c.setAttribute("r", motifKeys.has(key) ? pointRadius * 1.15 : pointRadius);
-      c.setAttribute(
-        "class",
-        [
-          "detector",
-          events.has(key) ? "event" : "",
-          selected.x === x && selected.y === y ? "selected" : "",
+  const target = Math.min(state.errorCount, instance.rows * instance.cols);
+  while (errors.size < target) {
+    const row = Math.floor(random() * instance.rows);
+    const col = Math.floor(random() * instance.cols);
+    errors.set(positionKey(row, col), { row, col });
+  }
+
+  return Array.from(errors.values());
+}
+
+function detectorDimensions(instance) {
+  if (state.family === "surface") {
+    return { rows: instance.rows + 1, cols: instance.cols + 1 };
+  }
+  return { rows: instance.rows, cols: instance.cols };
+}
+
+function detectorOffsets(instance, row, col) {
+  if (state.family === "surface") {
+    return [
+      { row, col },
+      { row: row + 1, col },
+      { row, col: col + 1 },
+      { row: row + 1, col: col + 1 },
+    ];
+  }
+
+  const wrap = (value, size) => ((value % size) + size) % size;
+  const offsets = [
+    { dr: 0, dc: 0 },
+    { dr: 1, dc: 2 },
+    { dr: 2, dc: 1 },
+    { dr: 3, dc: 3 },
+  ];
+  return offsets.map(({ dr, dc }) => ({
+    row: wrap(row + dr, instance.rows),
+    col: wrap(col + dc, instance.cols),
+  }));
+}
+
+function detectorEvents(instance, errors) {
+  const dims = detectorDimensions(instance);
+  const parity = new Map();
+
+  errors.forEach((error) => {
+    detectorOffsets(instance, error.row, error.col).forEach((detector) => {
+      if (
+        detector.row < 0 ||
+        detector.col < 0 ||
+        detector.row >= dims.rows ||
+        detector.col >= dims.cols
+      ) {
+        return;
+      }
+      const key = positionKey(detector.row, detector.col);
+      parity.set(key, !parity.get(key));
+    });
+  });
+
+  return Array.from(parity.entries())
+    .filter(([, active]) => active)
+    .map(([key]) => {
+      const [row, col] = key.split(",").map(Number);
+      return { row, col };
+    });
+}
+
+function geometry(rows, cols, width = 520, height = 360) {
+  const pad = 42;
+  const plotW = width - pad * 2;
+  const plotH = height - pad * 2;
+  const step = Math.min(plotW / Math.max(1, cols - 1), plotH / Math.max(1, rows - 1));
+  const offsetX = (width - step * Math.max(1, cols - 1)) / 2;
+  const offsetY = (height - step * Math.max(1, rows - 1)) / 2;
+  return {
+    step,
+    offsetX,
+    offsetY,
+    radius: Math.max(3.1, Math.min(10, step * 0.22)),
+    x: (col) => offsetX + col * step,
+    y: (row) => offsetY + row * step,
+  };
+}
+
+function localDataMotif(instance) {
+  const { row, col } = state.selected;
+  const raw = [
+    { row, col },
+    { row: row - 1, col },
+    { row: row + 1, col },
+    { row, col: col - 1 },
+    { row, col: col + 1 },
+  ];
+
+  if (state.family === "bb") {
+    const wrap = (value, size) => ((value % size) + size) % size;
+    return raw.map((item) => ({
+      row: wrap(item.row, instance.rows),
+      col: wrap(item.col, instance.cols),
+    }));
+  }
+
+  return raw.filter(
+    (item) => item.row >= 0 && item.col >= 0 && item.row < instance.rows && item.col < instance.cols,
+  );
+}
+
+function drawGridLines(svg, rows, cols, geom, className = "grid-line") {
+  for (let row = 0; row < rows; row += 1) {
+    svg.appendChild(
+      makeSvg("line", {
+        x1: geom.x(0),
+        y1: geom.y(row),
+        x2: geom.x(cols - 1),
+        y2: geom.y(row),
+        class: className,
+      }),
+    );
+  }
+
+  for (let col = 0; col < cols; col += 1) {
+    svg.appendChild(
+      makeSvg("line", {
+        x1: geom.x(col),
+        y1: geom.y(0),
+        x2: geom.x(col),
+        y2: geom.y(rows - 1),
+        class: className,
+      }),
+    );
+  }
+}
+
+function drawDataLattice(svg, instance, errors) {
+  svg.innerHTML = "";
+  const geom = geometry(instance.rows, instance.cols);
+  const errorKeys = new Set(errors.map((item) => positionKey(item.row, item.col)));
+  const motifKeys = new Set(localDataMotif(instance).map((item) => positionKey(item.row, item.col)));
+
+  if (state.family === "bb") {
+    svg.appendChild(
+      makeSvg("rect", {
+        x: geom.x(0) - 18,
+        y: geom.y(0) - 18,
+        width: geom.step * (instance.cols - 1) + 36,
+        height: geom.step * (instance.rows - 1) + 36,
+        rx: 20,
+        class: "bb-plane",
+      }),
+    );
+  }
+
+  drawGridLines(svg, instance.rows, instance.cols, geom);
+
+  motifKeys.forEach((key) => {
+    const [row, col] = key.split(",").map(Number);
+    svg.appendChild(
+      makeSvg("rect", {
+        x: geom.x(col) - geom.step * 0.36,
+        y: geom.y(row) - geom.step * 0.36,
+        width: geom.step * 0.72,
+        height: geom.step * 0.72,
+        rx: 6,
+        class: "motif",
+      }),
+    );
+  });
+
+  for (let row = 0; row < instance.rows; row += 1) {
+    for (let col = 0; col < instance.cols; col += 1) {
+      const key = positionKey(row, col);
+      const point = makeSvg("circle", {
+        cx: geom.x(col),
+        cy: geom.y(row),
+        r: motifKeys.has(key) ? geom.radius * 1.22 : geom.radius,
+        class: [
+          "qubit",
+          errorKeys.has(key) ? "error" : "",
+          state.selected.row === row && state.selected.col === col ? "selected" : "",
         ]
           .filter(Boolean)
           .join(" "),
-      );
-      c.addEventListener("click", () => {
-        state.selected = { x, y };
+      });
+      point.addEventListener("click", () => {
+        state.selected = { row, col };
         render();
       });
-      svg.appendChild(c);
+      svg.appendChild(point);
     }
   }
 
-  const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  label.setAttribute("x", 22);
-  label.setAttribute("y", 304);
-  label.setAttribute("class", "chart-label");
-  label.textContent =
-    family === "surface" ? "local stencil: 1 + x + y + xy" : "polynomial motif: A, B offsets";
+  const label = makeSvg("text", { x: 18, y: 330, class: "chart-label" });
+  label.textContent = `${labelFor(instance)} data-qubit layout, n = ${instance.n}`;
   svg.appendChild(label);
 }
 
-function transferAccuracy(step, distance, family) {
-  const d = family === "bb" ? 12 : distance;
-  const tau = family === "bb" ? 950 : 520 + Math.max(0, d - 11) * 34;
-  const cap = family === "bb" ? 0.895 : 0.955 - Math.max(0, d - 19) * 0.012;
-  return 0.5 + (cap - 0.5) * (1 - Math.exp(-step / tau));
-}
-
-function scratchAccuracy(step, distance, family) {
-  const d = family === "bb" ? 12 : distance;
-  const plateau = family === "bb" ? 3000 : 620 + Math.max(0, d - 11) * 285;
-  const cap = family === "bb" ? 0.84 : 0.91 - Math.max(0, d - 19) * 0.018;
-  if (step < plateau) {
-    return 0.5 + 0.018 * Math.max(0, Math.sin(step / 180));
-  }
-  return 0.5 + (cap - 0.5) * (1 - Math.exp(-(step - plateau) / 820));
-}
-
-function accuracyAt(mode, step, distance, family) {
-  return mode === "transfer"
-    ? transferAccuracy(step, distance, family)
-    : scratchAccuracy(step, distance, family);
-}
-
-function drawChart() {
-  const svg = els.chart;
-  const family = state.family;
-  const distance = Number(state.target);
-  const width = 520;
-  const height = 330;
-  const pad = { left: 52, right: 18, top: 22, bottom: 46 };
-  const maxStep = families[family].maxStep;
-  const yMin = 0.48;
-  const yMax = 0.98;
-
-  const x = (step) => pad.left + (step / maxStep) * (width - pad.left - pad.right);
-  const y = (acc) => pad.top + ((yMax - acc) / (yMax - yMin)) * (height - pad.top - pad.bottom);
-  const pathFor = (mode) => {
-    const points = [];
-    for (let s = 0; s <= maxStep; s += 100) {
-      points.push(`${x(s).toFixed(1)},${y(accuracyAt(mode, s, distance, family)).toFixed(1)}`);
-    }
-    return points.join(" ");
-  };
-
+function drawDetectorLattice(svg, instance, events) {
   svg.innerHTML = "";
-  [0.5, 0.7, 0.9].forEach((tick) => {
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", pad.left);
-    line.setAttribute("y1", y(tick));
-    line.setAttribute("x2", width - pad.right);
-    line.setAttribute("y2", y(tick));
-    line.setAttribute("class", "chart-grid");
-    svg.appendChild(line);
+  const dims = detectorDimensions(instance);
+  const geom = geometry(dims.rows, dims.cols);
+  const eventKeys = new Set(events.map((item) => positionKey(item.row, item.col)));
+  const localKeys = new Set(
+    detectorOffsets(instance, state.selected.row, state.selected.col)
+      .filter((item) => item.row >= 0 && item.col >= 0 && item.row < dims.rows && item.col < dims.cols)
+      .map((item) => positionKey(item.row, item.col)),
+  );
 
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", 12);
-    label.setAttribute("y", y(tick) + 4);
-    label.setAttribute("class", "chart-label");
-    label.textContent = tick.toFixed(1);
-    svg.appendChild(label);
+  if (state.family === "bb") {
+    svg.appendChild(
+      makeSvg("rect", {
+        x: geom.x(0) - 18,
+        y: geom.y(0) - 18,
+        width: geom.step * (dims.cols - 1) + 36,
+        height: geom.step * (dims.rows - 1) + 36,
+        rx: 20,
+        class: "bb-plane",
+      }),
+    );
+  }
+
+  drawGridLines(svg, dims.rows, dims.cols, geom);
+
+  localKeys.forEach((key) => {
+    const [row, col] = key.split(",").map(Number);
+    svg.appendChild(
+      makeSvg("rect", {
+        x: geom.x(col) - geom.step * 0.34,
+        y: geom.y(row) - geom.step * 0.34,
+        width: geom.step * 0.68,
+        height: geom.step * 0.68,
+        rx: 6,
+        class: "detector-window",
+      }),
+    );
   });
 
-  const axisX = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  axisX.setAttribute("x1", pad.left);
-  axisX.setAttribute("y1", height - pad.bottom);
-  axisX.setAttribute("x2", width - pad.right);
-  axisX.setAttribute("y2", height - pad.bottom);
-  axisX.setAttribute("class", "chart-axis");
-  svg.appendChild(axisX);
+  for (let row = 0; row < dims.rows; row += 1) {
+    for (let col = 0; col < dims.cols; col += 1) {
+      const key = positionKey(row, col);
+      svg.appendChild(
+        makeSvg("circle", {
+          cx: geom.x(col),
+          cy: geom.y(row),
+          r: eventKeys.has(key) ? geom.radius * 1.28 : geom.radius * 0.86,
+          class: ["check", eventKeys.has(key) ? "event" : "", localKeys.has(key) ? "local" : ""]
+            .filter(Boolean)
+            .join(" "),
+        }),
+      );
+    }
+  }
 
-  const axisY = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  axisY.setAttribute("x1", pad.left);
-  axisY.setAttribute("y1", pad.top);
-  axisY.setAttribute("x2", pad.left);
-  axisY.setAttribute("y2", height - pad.bottom);
-  axisY.setAttribute("class", "chart-axis");
-  svg.appendChild(axisY);
+  const label = makeSvg("text", { x: 18, y: 330, class: "chart-label" });
+  label.textContent =
+    state.family === "surface"
+      ? "Surface checks: adjacent plaquette/star events toggle by parity"
+      : "BB checks: cyclic Tanner-neighborhood events toggle by parity";
+  svg.appendChild(label);
+}
 
-  const transfer = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-  transfer.setAttribute("points", pathFor("transfer"));
-  transfer.setAttribute("class", "line-transfer");
-  svg.appendChild(transfer);
+function drawMiniGrid(svg, x0, y0, size, activeCells = [], label = "") {
+  const step = size / 4;
+  for (let i = 0; i < 5; i += 1) {
+    svg.appendChild(makeSvg("line", { x1: x0, y1: y0 + i * step, x2: x0 + size, y2: y0 + i * step, class: "mini-grid-line" }));
+    svg.appendChild(makeSvg("line", { x1: x0 + i * step, y1: y0, x2: x0 + i * step, y2: y0 + size, class: "mini-grid-line" }));
+  }
+  activeCells.forEach(([row, col]) => {
+    svg.appendChild(
+      makeSvg("rect", {
+        x: x0 + col * step + step * 0.16,
+        y: y0 + row * step + step * 0.16,
+        width: step * 0.68,
+        height: step * 0.68,
+        rx: 5,
+        class: "mini-motif",
+      }),
+    );
+  });
+  const text = makeSvg("text", { x: x0, y: y0 + size + 28, class: "perception-label" });
+  text.textContent = label;
+  svg.appendChild(text);
+}
 
-  const scratch = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-  scratch.setAttribute("points", pathFor("scratch"));
-  scratch.setAttribute("class", "line-scratch");
-  svg.appendChild(scratch);
+function drawArrow(svg, x1, y1, x2, y2) {
+  svg.appendChild(makeSvg("line", { x1, y1, x2, y2, class: "perception-arrow" }));
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const head = [
+    [x2, y2],
+    [x2 - 10 * Math.cos(angle - 0.45), y2 - 10 * Math.sin(angle - 0.45)],
+    [x2 - 10 * Math.cos(angle + 0.45), y2 - 10 * Math.sin(angle + 0.45)],
+  ]
+    .map((point) => point.join(","))
+    .join(" ");
+  svg.appendChild(makeSvg("polygon", { points: head, class: "perception-arrow-head" }));
+}
 
-  const marker = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  marker.setAttribute("x1", x(state.steps));
-  marker.setAttribute("y1", pad.top);
-  marker.setAttribute("x2", x(state.steps));
-  marker.setAttribute("y2", height - pad.bottom);
-  marker.setAttribute("class", "chart-marker");
-  svg.appendChild(marker);
+function drawNode(svg, x, y, w, h, title, body, className = "") {
+  svg.appendChild(makeSvg("rect", { x, y, width: w, height: h, rx: 8, class: `perception-node ${className}` }));
+  const titleNode = makeSvg("text", { x: x + 16, y: y + 28, class: "perception-title" });
+  titleNode.textContent = title;
+  svg.appendChild(titleNode);
+  const bodyNode = makeSvg("text", { x: x + 16, y: y + 54, class: "perception-body" });
+  bodyNode.textContent = body;
+  svg.appendChild(bodyNode);
+}
 
-  const labels = [
-    { text: "NTU transfer", x: width - 142, y: y(transferAccuracy(maxStep, distance, family)) - 10, fill: "#16736b" },
-    { text: "scratch", x: width - 92, y: y(scratchAccuracy(maxStep, distance, family)) + 20, fill: "#6555a6" },
-    { text: "fine-tuning steps", x: width - 140, y: height - 12, fill: "#5e6b73" },
+function drawSyndromeStory(svg, instance, errors, events) {
+  svg.innerHTML = "";
+  drawNode(svg, 30, 44, 230, 92, "Data-qubit error", `${errors.length} physical error(s) sampled`, "hot");
+  drawNode(svg, 392, 44, 240, 92, "Detector events", `${events.length} parity changes observed`, "warm");
+  drawNode(svg, 760, 28, 240, 64, "Physical route", "predict errored data qubits");
+  drawNode(svg, 760, 124, 240, 64, "Logical route", `predict [0,1]^${instance.k}`);
+  drawArrow(svg, 260, 90, 392, 90);
+  drawArrow(svg, 632, 82, 760, 60);
+  drawArrow(svg, 632, 98, 760, 156);
+
+  const note = makeSvg("text", { x: 30, y: 245, class: "perception-note" });
+  note.textContent =
+    "A decoder sees detector events, not the hidden error directly. The model must infer either a correction or the final logical status.";
+  svg.appendChild(note);
+}
+
+function drawInvarianceStory(svg, instance) {
+  svg.innerHTML = "";
+  const motif = [
+    [1, 1],
+    [1, 2],
+    [2, 1],
+    [2, 2],
   ];
+  drawMiniGrid(svg, 55, 54, 130, motif, "spatial shift");
+  drawMiniGrid(svg, 330, 54, 130, motif, "temporal repeat");
+  drawMiniGrid(svg, 610, 38, 170, motif, "scale expansion");
+  drawArrow(svg, 205, 118, 305, 118);
+  drawArrow(svg, 480, 118, 585, 118);
+  drawNode(svg, 820, 72, 190, 96, "Same motif M", codeFamilies[state.family].motif);
 
-  labels.forEach((item) => {
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    label.setAttribute("x", item.x);
-    label.setAttribute("y", item.y);
-    label.setAttribute("class", "chart-label");
-    label.setAttribute("fill", item.fill);
-    label.textContent = item.text;
-    svg.appendChild(label);
-  });
+  const equation = makeSvg("text", { x: 55, y: 265, class: "perception-equation" });
+  equation.textContent = `N(v) = v M(x,y,t), preserved for ${labelFor(instance)}`;
+  svg.appendChild(equation);
 }
 
-function formatSci(value) {
-  return value.toExponential(1).replace("+", "");
+function drawNetworkStory(svg, instance) {
+  svg.innerHTML = "";
+  drawNode(svg, 28, 72, 170, 86, "Stem", "local detector roles");
+  drawNode(svg, 248, 72, 180, 86, "Spatial transformer", "within each round");
+  drawNode(svg, 478, 72, 180, 86, "Temporal recurrent", "along t axis");
+  drawNode(svg, 708, 72, 180, 86, "Cross attention", "global readout");
+  drawNode(svg, 920, 72, 94, 86, "Output", `[0,1]^${instance.k}`, "cool");
+  drawArrow(svg, 198, 115, 248, 115);
+  drawArrow(svg, 428, 115, 478, 115);
+  drawArrow(svg, 658, 115, 708, 115);
+  drawArrow(svg, 888, 115, 920, 115);
+
+  const note = makeSvg("text", { x: 28, y: 250, class: "perception-note" });
+  note.textContent =
+    "Figure 1b intuition: map code locality into network locality, then aggregate across time and logical readout tokens.";
+  svg.appendChild(note);
 }
 
-function updateReadouts() {
-  const family = state.family;
-  const distance = Number(state.target);
-  const acc = accuracyAt(state.mode, state.steps, distance, family);
-  const base = families[family].baseDistance;
-  const gamma = state.mode === "transfer" ? 1.27 : 2.02;
-  const multiplier = Math.pow(distance / base, gamma);
-  const ler = Math.pow(10, -2 - Math.max(0, acc - 0.5) * 9 - Math.max(0, distance - base) / 18);
+function drawPerception(instance, errors, events) {
+  if (state.view === "syndrome") {
+    els.viewLabel.textContent = "Errors -> detectors";
+    drawSyndromeStory(els.perceptionMap, instance, errors, events);
+    return;
+  }
 
-  let status = "transfer lift-off";
-  if (state.mode === "scratch" && acc < 0.56) status = "cold-start plateau";
-  if (state.mode === "transfer" && state.steps < 300) status = "aligned initialization";
-  if (acc > 0.88) status = "boundary fine-tuning";
+  if (state.view === "invariance") {
+    els.viewLabel.textContent = "Spatial, temporal, scale invariance";
+    drawInvarianceStory(els.perceptionMap, instance);
+    return;
+  }
 
-  els.stepReadout.textContent = `${state.steps} steps`;
-  els.accuracyReadout.textContent = acc.toFixed(3);
-  els.lerReadout.textContent = formatSci(ler);
-  els.computeReadout.textContent = `Gamma = ${gamma.toFixed(2)} (${multiplier.toFixed(1)}x)`;
-  els.stateReadout.textContent = status;
+  els.viewLabel.textContent = "Local perception -> logical readout";
+  drawNetworkStory(els.perceptionMap, instance);
 }
 
-function populateTargets() {
-  const config = families[state.family];
-  els.targetScale.innerHTML = "";
-  config.targets.forEach((target) => {
+function populateInstances() {
+  const family = codeFamilies[state.family];
+  els.codeInstance.innerHTML = "";
+  family.instances.forEach((instance) => {
     const option = document.createElement("option");
-    option.value = target.value;
-    option.textContent = target.label;
-    els.targetScale.appendChild(option);
+    option.value = instance.id;
+    option.textContent = `${labelFor(instance)} ${family.name}`;
+    els.codeInstance.appendChild(option);
   });
-  state.target = config.targets[config.targets.length - 1].value;
-  els.targetScale.value = state.target;
-  state.selected = {
-    x: Math.floor(state.target / 2),
-    y: Math.floor(state.target / 2),
-  };
+
+  state.instanceId = family.instances[0].id;
+  els.codeInstance.value = state.instanceId;
+  centerSelection(currentInstance());
+}
+
+function updateReadouts(instance, events) {
+  const checks = instance.n - instance.k;
+  const label = labelFor(instance);
+  els.layoutLabel.textContent = label;
+  els.detectorLabel.textContent = `${events.length} events`;
+  els.codeReadout.textContent = label;
+  els.nReadout.textContent = `n = ${instance.n}`;
+  els.kReadout.textContent = `k = ${instance.k}`;
+  els.dReadout.textContent = `d = ${instance.d}`;
+  els.inputReadout.textContent = `${instance.rounds} x ${checks}`;
+  els.syndromeReadout.textContent = `${events.length} detector events`;
 }
 
 function render() {
-  const config = families[state.family];
-  const sourceSize = config.sourceSize;
-  const targetSize = Number(state.target);
+  const instance = currentInstance();
+  state.selected.row = Math.min(instance.rows - 1, Math.max(0, state.selected.row));
+  state.selected.col = Math.min(instance.cols - 1, Math.max(0, state.selected.col));
 
-  els.sourceLabel.textContent = config.sourceLabel;
-  els.targetLabel.textContent = config.targetLabel(targetSize);
+  const errors = sampleErrors(instance);
+  const events = detectorEvents(instance, errors);
 
-  drawLattice(els.sourceLattice, {
-    size: sourceSize,
-    family: state.family,
-    selected: {
-      x: Math.min(sourceSize - 2, Math.max(1, Math.floor(sourceSize / 2))),
-      y: Math.min(sourceSize - 2, Math.max(1, Math.floor(sourceSize / 2))),
-    },
-    density: state.density,
-    seed: state.seed,
-    compact: true,
-  });
-
-  state.selected.x = Math.min(targetSize - 1, state.selected.x);
-  state.selected.y = Math.min(targetSize - 1, state.selected.y);
-  drawLattice(els.targetLattice, {
-    size: targetSize,
-    family: state.family,
-    selected: state.selected,
-    density: state.density,
-    seed: state.seed + 91,
-    compact: false,
-  });
-
-  drawChart();
-  updateReadouts();
+  drawDataLattice(els.codeLattice, instance, errors);
+  drawDetectorLattice(els.detectorLattice, instance, events);
+  drawPerception(instance, errors, events);
+  updateReadouts(instance, events);
 }
 
 document.querySelectorAll("[data-family]").forEach((button) => {
   button.addEventListener("click", () => {
     state.family = button.dataset.family;
-    document.querySelectorAll("[data-family]").forEach((b) => b.classList.toggle("active", b === button));
-    populateTargets();
+    document.querySelectorAll("[data-family]").forEach((item) => item.classList.toggle("active", item === button));
+    populateInstances();
     render();
   });
 });
 
-document.querySelectorAll("[data-mode]").forEach((button) => {
+document.querySelectorAll("[data-view]").forEach((button) => {
   button.addEventListener("click", () => {
-    state.mode = button.dataset.mode;
-    document.querySelectorAll("[data-mode]").forEach((b) => b.classList.toggle("active", b === button));
+    state.view = button.dataset.view;
+    document.querySelectorAll("[data-view]").forEach((item) => item.classList.toggle("active", item === button));
     render();
   });
 });
 
-els.targetScale.addEventListener("change", (event) => {
-  state.target = Number(event.target.value);
-  state.selected = {
-    x: Math.floor(state.target / 2),
-    y: Math.floor(state.target / 2),
-  };
+els.codeInstance.addEventListener("change", (event) => {
+  state.instanceId = event.target.value;
+  centerSelection(currentInstance());
   render();
 });
 
-els.stepSlider.addEventListener("input", (event) => {
-  state.steps = Number(event.target.value);
-  render();
-});
-
-els.noiseSlider.addEventListener("input", (event) => {
-  state.density = Number(event.target.value);
-  render();
-});
-
-els.advanceBtn.addEventListener("click", () => {
-  state.steps = Math.min(5000, state.steps + 200);
-  els.stepSlider.value = state.steps;
+els.errorSlider.addEventListener("input", (event) => {
+  state.errorCount = Number(event.target.value);
   render();
 });
 
 els.resampleBtn.addEventListener("click", () => {
-  state.seed += 13;
+  state.seed += 17;
+  render();
+});
+
+els.centerBtn.addEventListener("click", () => {
+  centerSelection(currentInstance());
   render();
 });
 
@@ -430,7 +563,7 @@ els.copyBibtex.addEventListener("click", async () => {
   }
 });
 
-populateTargets();
+populateInstances();
 render();
 
 const assistantWidget = document.querySelector(".assistant-widget");

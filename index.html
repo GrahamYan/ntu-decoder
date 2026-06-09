@@ -20,10 +20,11 @@
           <span>NTU Decoder</span>
         </a>
         <div class="nav-links">
-          <a href="#problem">Problem</a>
-          <a href="#approach">Method</a>
-          <a href="#lab">Transfer Lab</a>
+          <a href="#introduction">Introduction</a>
+          <a href="#invariance">Invariance</a>
           <a href="#results">Results</a>
+          <a href="#methods">Methods</a>
+          <a href="#interaction">Interaction</a>
           <a href="#citation">Citation</a>
         </div>
       </nav>
@@ -35,11 +36,11 @@
           <p class="eyebrow">Neural Transfer Unification for quantum error correction</p>
           <h1>Efficient foundation decoders for fault-tolerant quantum computing</h1>
           <p class="hero-summary">
-            Foundation neural decoders can be accurate at large code distances, but
-            training every target distance from scratch is expensive. NTU aligns
-            decoding tasks through the algebraic local invariances shared by scalable
-            code families, allowing representations learned on smaller codes to seed
-            larger decoders.
+            This project studies scalable neural decoders for quantum error
+            correction. The key idea is to map the spatial, temporal, and
+            scale-invariant structure of quantum codes into neural network design,
+            so a decoder can transfer local error knowledge from small codes to
+            larger, fault-tolerant regimes.
           </p>
 
           <div class="author-block">
@@ -58,117 +59,161 @@
             <a class="button primary" href="Transfer_learning_is_all_you_need_for_scalable_neural_decoder.pdf">
               Paper PDF
             </a>
-            <a class="button" href="#lab">Interactive demo</a>
+            <a class="button" href="#interaction">Interactive demo</a>
             <button class="button" id="open-assistant-hero" type="button">Ask AI assistant</button>
           </div>
         </div>
 
         <aside class="hero-panel" aria-label="Key claims">
           <div class="metric">
-            <span class="metric-value">d = 25</span>
-            <span class="metric-label">Surface-code scaling reached by transfer</span>
+            <span class="metric-value">n, k, d</span>
+            <span class="metric-label">Code size, logical capacity, and distance organize the decoding task</span>
           </div>
           <div class="metric">
-            <span class="metric-value">27%</span>
-            <span class="metric-label">Additional overhead relative to transferred baseline</span>
+            <span class="metric-value">2 routes</span>
+            <span class="metric-label">Predict physical errors or directly predict logical status</span>
           </div>
           <div class="metric">
-            <span class="metric-value">[[72,12,6]]</span>
-            <span class="metric-label">BB-code NTU-Transformer beats Relay-BP at low p</span>
+            <span class="metric-value">Surface + BB</span>
+            <span class="metric-label">The framework covers planar and quantum LDPC code families</span>
           </div>
         </aside>
       </section>
 
-      <section id="problem" class="section narrative-section">
+      <section id="introduction" class="section narrative-section">
         <div class="section-heading">
-          <p class="eyebrow">The scaling bottleneck</p>
-          <h2>Large-distance neural decoders are powerful, but expensive to build.</h2>
+          <p class="eyebrow">Introduction to neural decoding</p>
+          <h2>Quantum error correction turns noisy measurements into reliable logical information.</h2>
+          <p>
+            A quantum error-correcting code stores <code>k</code> logical qubits in
+            <code>n</code> noisy data qubits. The code distance <code>d</code>
+            measures the minimum number of physical faults needed to cause an
+            undetected logical error. Larger <code>d</code> improves protection,
+            but also makes the decoding problem larger.
+          </p>
+        </div>
+
+        <div class="concept-grid">
+          <article>
+            <span class="step-index">n</span>
+            <h3>Data qubits</h3>
+            <p>
+              The physical qubits that carry the encoded quantum state. Increasing
+              <code>n</code> gives the code more redundancy and more measurement
+              data for the decoder.
+            </p>
+          </article>
+          <article>
+            <span class="step-index">k</span>
+            <h3>Logical qubits</h3>
+            <p>
+              The protected qubits represented by the code space. Surface-code
+              memory experiments often use <code>k = 1</code>, while BB codes can
+              encode multiple logical qubits.
+            </p>
+          </article>
+          <article>
+            <span class="step-index">d</span>
+            <h3>Code distance</h3>
+            <p>
+              The fault tolerance scale. A decoder must remain accurate as
+              distance grows and the syndrome history expands across space and time.
+            </p>
+          </article>
         </div>
 
         <div class="split-section">
           <div class="prose">
+            <h3>Surface codes and BB codes</h3>
             <p>
-              Fault-tolerant quantum computers continuously produce noisy syndrome
-              measurements. A decoder must transform those measurements into a
-              correction or a logical-error prediction before new errors accumulate.
-              High-capacity neural decoders can learn this map directly from data,
-              and recent foundation decoders have made neural decoding competitive
-              with leading algorithmic baselines.
+              The rotated surface code is a planar topological code. Its local
+              stabilizer pattern is geometrically transparent: data qubits live on
+              a two-dimensional lattice and nearby checks detect local error chains.
             </p>
             <p>
-              The practical obstacle is scaling. Increasing the code distance expands
-              the spatiotemporal syndrome volume, raises the cost of data generation,
-              and makes optimization harder. Training a fresh model for every target
-              distance therefore wastes the information already learned on smaller,
-              tractable codes.
-            </p>
-            <p>
-              NTU changes the training unit. Instead of treating each distance as a
-              separate task, it treats a scalable code family as a sequence of aligned
-              tasks that share the same local algebraic error motifs.
+              Bivariate bicycle codes, or BB codes, are quantum LDPC codes with a
+              quasi-cyclic algebraic structure. Their Tanner graphs are less
+              visually local than a surface-code lattice, but they still have
+              compact polynomial neighborhoods that repeat across the code.
             </p>
           </div>
 
-          <div class="pipeline-panel" aria-label="Decoder pipeline">
-            <div class="pipeline-step">
-              <span>01</span>
-              <strong>Noisy syndrome stream</strong>
-              <p>Detector events arrive across space and repeated measurement rounds.</p>
-            </div>
-            <div class="pipeline-step">
-              <span>02</span>
-              <strong>Scale-invariant perception</strong>
-              <p>Local motifs are indexed by algebraic shifts rather than absolute size.</p>
-            </div>
-            <div class="pipeline-step">
-              <span>03</span>
-              <strong>Boundary-aware decision</strong>
-              <p>Only the expanded global readout needs efficient target-side tuning.</p>
-            </div>
+          <div class="code-family-grid" aria-label="Code family examples">
+            <article>
+              <strong>Rotated surface code</strong>
+              <p><code>[[d^2, 1, d]]</code> memory-code family</p>
+              <p>Examples used in the interaction: <code>[[49,1,7]]</code>, <code>[[121,1,11]]</code>, <code>[[361,1,19]]</code>, <code>[[625,1,25]]</code>.</p>
+            </article>
+            <article>
+              <strong>Bivariate bicycle code</strong>
+              <p>Quantum LDPC family with cyclic polynomial neighborhoods</p>
+              <p>Examples used in the interaction: <code>[[72,12,6]]</code> and <code>[[144,12,12]]</code>.</p>
+            </article>
           </div>
+        </div>
+
+        <div class="decoder-route-grid">
+          <article>
+            <h3>Route 1: predict physical errors</h3>
+            <p>
+              A neural decoder can infer which data qubits suffered errors, then
+              apply a correction. This route naturally matches graph-based models
+              on the Tanner graph, including neural belief-propagation variants.
+            </p>
+          </article>
+          <article>
+            <h3>Route 2: predict logical status</h3>
+            <p>
+              A neural decoder can also skip explicit physical correction and
+              directly predict the logical error vector. In the paper's
+              NTU-Transformer, the input is a binary syndrome history and the
+              output is a <code>k</code>-dimensional logical-error probability.
+            </p>
+          </article>
         </div>
       </section>
 
-      <section id="approach" class="section">
+      <section id="invariance" class="section">
         <div class="section-heading">
-          <p class="eyebrow">Structural isomorphism</p>
-          <h2>The same local QEC motif reappears across distance.</h2>
+          <p class="eyebrow">Invariance in QEC and neural networks</p>
+          <h2>Spatial, temporal, and scale invariance are the bridge from codes to model design.</h2>
           <p>
-            The paper's central observation is that scalable QEC families preserve
-            local algebraic structure while the global boundary grows. NTU maps this
-            physical invariance into the neural representation space.
+            Figure 1a motivates the transfer principle: the same local error
+            motif reappears under spatial shifts, repeated measurement rounds,
+            and code-size scaling. The global lattice changes, but the local
+            algebraic relation between detectors remains reusable.
           </p>
         </div>
 
         <div class="text-figure-grid">
           <div class="prose">
-            <h3>QEC codes and scale invariance</h3>
+            <h3>Three invariances</h3>
             <p>
-              Syndrome detectors can be indexed by a generalized spatiotemporal
-              polynomial coordinate system. A detector coordinate has the form
-              <code>v = x^i y^j t^k</code>, where <code>x</code> and <code>y</code>
-              represent spatial translations and <code>t</code> represents syndrome
-              extraction rounds.
+              <strong>Spatial invariance</strong> says that the same local syndrome
+              pattern can occur at different locations. <strong>Temporal invariance</strong>
+              says the same detector relation repeats across syndrome extraction
+              rounds. <strong>Scale invariance</strong> says that these local motifs
+              persist when the code distance grows.
             </p>
             <p>
-              Under this view, the relative topological shift between two detectors
-              is independent of the global code boundary. The local neighborhood of
-              a detector is written as an invariant motif:
+              The paper represents detector neighborhoods by algebraic shifts. If
+              a detector is indexed as <code>v = x^i y^j t^r</code>, its local
+              neighborhood can be written as:
             </p>
-            <div class="equation-box">N(v) = v · M(x,y,t)</div>
+            <div class="equation-box">N(v) = v M(x, y, t)</div>
             <p>
-              For the rotated surface code this motif is the familiar local planar
-              stabilizer pattern. For BB codes it is induced by compact bivariate
-              polynomials over cyclic group rings. The macroscopic visualization is
-              different, but the reusable local indexing principle is the same.
+              The motif <code>M</code> is local and reusable. Multiplying by
+              <code>v</code> moves the same pattern through space and time, which
+              is exactly the type of inductive bias a scalable neural decoder needs.
             </p>
           </div>
 
           <figure class="wide-figure compact-figure">
-            <img src="assets/figure-1.png" alt="QEC code invariance and network transfer overview" />
+            <img src="assets/figure-1.png" alt="Code invariance and neural network local perception overview" />
             <figcaption>
-              Spatial, temporal, and scale invariances make the same local motif
-              visible on small and large codes.
+              Figure 1 connects code invariance to local neural perception: the
+              decoder should reuse the same local update rule when a motif shifts
+              in space, time, or scale.
             </figcaption>
           </figure>
         </div>
@@ -176,107 +221,207 @@
         <div class="approach-grid">
           <article>
             <span class="step-index">01</span>
-            <h3>Algebraic neighborhoods</h3>
+            <h3>Code property</h3>
             <p>
-              Syndrome detectors are indexed by spatiotemporal monomials such as
-              x^i y^j t^k. Their recurring local neighborhood is represented by
-              N(v) = v M(x,y,t), independent of global lattice size.
+              Local parity-check neighborhoods are repeated structures. Surface
+              codes expose this geometrically; BB codes expose it through compact
+              cyclic polynomials.
             </p>
           </article>
           <article>
             <span class="step-index">02</span>
-            <h3>Scale-invariant backbone</h3>
+            <h3>Network perception</h3>
             <p>
-              The learnable update uses relative algebraic shifts. STEM and
-              geometry-aware RoPE keep identical local motifs aligned when the
-              surface-code lattice or BB-code torus expands.
+              Figure 1b maps this locality into neural design: the model should
+              attend to local detector neighborhoods before aggregating global
+              information.
             </p>
           </article>
           <article>
             <span class="step-index">03</span>
-            <h3>Amortized scaling</h3>
+            <h3>Transfer principle</h3>
             <p>
-              A decoder trained on a small source distance initializes the larger
-              target decoder. Fine-tuning mainly adapts scale-dependent global
-              readout layers instead of relearning local error physics.
+              When local semantics are preserved, parameters learned on a small
+              source code remain meaningful after the target code expands.
             </p>
           </article>
         </div>
       </section>
 
-      <section id="framework" class="section narrative-section">
+      <section id="results" class="section">
         <div class="section-heading">
-          <p class="eyebrow">NTU-Transformer</p>
-          <h2>Align local perception before scaling the global readout.</h2>
+          <p class="eyebrow">Main results</p>
+          <h2>Transfer improves large-scale decoding for both surface and BB codes.</h2>
+          <p>
+            The main evidence is organized around the two code families. The
+            project page focuses on panels a and c of the main figures: decoding
+            performance and transfer behavior.
+          </p>
+        </div>
+
+        <article class="result-story">
+          <div class="prose">
+            <p class="eyebrow">Surface code</p>
+            <h3>Transfer scales the NTU-Transformer across distance.</h3>
+            <p>
+              For surface-code memory experiments, the model is trained on a
+              smaller code and then transferred to larger distances. Figure 2a
+              compares logical error rate across physical error rates, showing that
+              the neural decoder remains competitive in the regime where matching
+              baselines become strained by correlated, degenerate detector events.
+              Figure 2c isolates the training effect: transfer initialization avoids
+              the cold-start plateau seen when large-distance models are trained
+              from scratch.
+            </p>
+          </div>
+          <figure class="result-card">
+            <img src="assets/surface-ac.png" alt="Surface-code result panels a and c" />
+            <figcaption>
+              Surface-code main results, focusing on Figure 2a and Figure 2c:
+              decoding performance and transfer-versus-scratch training behavior.
+            </figcaption>
+          </figure>
+        </article>
+
+        <article class="result-story flipped">
+          <div class="prose">
+            <p class="eyebrow">Bivariate bicycle code</p>
+            <h3>The same principle transfers beyond planar geometry.</h3>
+            <p>
+              BB codes test whether NTU depends on a visible two-dimensional
+              lattice. It does not: the model uses the algebraic Tanner-graph
+              neighborhood induced by the code. Figure 3a shows that the
+              NTU-Transformer performs strongly on the base BB code against
+              belief-propagation-based baselines. Figure 3c shows the larger
+              <code>[[144,12,12]]</code> target case, where transferred models
+              rapidly improve while scratch training can stagnate near random
+              guessing.
+            </p>
+          </div>
+          <figure class="result-card">
+            <img src="assets/bb-ac.png" alt="BB-code result panels a and c" />
+            <figcaption>
+              BB-code main results, focusing on Figure 3a and Figure 3c:
+              base-code decoding performance and transfer to the larger code.
+            </figcaption>
+          </figure>
+        </article>
+      </section>
+
+      <section id="methods" class="section narrative-section">
+        <div class="section-heading">
+          <p class="eyebrow">Methods</p>
+          <h2>Two model families match the two decoding routes.</h2>
+          <p>
+            The paper uses a Transformer to directly predict logical errors, and a
+            GNN-based neural-BP model to predict physical errors on the Tanner
+            graph.
+          </p>
         </div>
 
         <div class="split-section reverse">
           <div class="method-stack">
             <article>
-              <h3>STEM: scalable transformer embedding</h3>
+              <h3>Input and output</h3>
               <p>
-                STEM aggregates explicit topological neighbors and groups them by
-                algebraic relation: same-type, cross-type, and temporal predecessor
-                detectors. The embedding vocabulary therefore refers to physical
-                neighborhood roles, not arbitrary flattened indices.
+                The Transformer receives a binary detector history
+                <code>{0,1}^{T x m}</code>, where <code>T</code> is the number of
+                syndrome rounds and <code>m</code> is the number of detectors per
+                round. It outputs <code>[0,1]^k</code>, the predicted logical-error
+                probabilities.
               </p>
             </article>
             <article>
-              <h3>Geometry-aware RoPE</h3>
+              <h3>Stem</h3>
               <p>
-                NTU avoids normalizing coordinates by the expanding code size. RoPE
-                instead encodes unnormalized relative algebraic shifts, preserving the
-                phase pattern of local attention when the lattice grows.
+                The stem embeds detector events with local code geometry, so early
+                features already know which detector neighborhoods are physically
+                related.
               </p>
             </article>
             <article>
-              <h3>Two decoding routes</h3>
+              <h3>Spatial transformer</h3>
               <p>
-                Physical error inference can scatter local features back to data
-                qubits through the invariant Tanner graph. Logical error classification
-                needs a scale-dependent global decision layer, so transfer is followed
-                by lightweight fine-tuning.
+                Within each syndrome round, attention mixes spatially related
+                detector features and preserves the local algebraic motif.
+              </p>
+            </article>
+            <article>
+              <h3>Temporal recurrent path</h3>
+              <p>
+                Along the time axis, recurrent processing tracks how detector
+                events persist or move across repeated syndrome extraction rounds.
+              </p>
+            </article>
+            <article>
+              <h3>Cross-attention readout</h3>
+              <p>
+                Final logical readout uses cross attention to aggregate the
+                spatiotemporal syndrome representation into <code>k</code> logical
+                status predictions.
               </p>
             </article>
           </div>
 
           <div class="prose">
+            <h3>NTU-Transformer: logical-error prediction</h3>
             <p>
-              NTU is architecture-agnostic, but the paper instantiates it as
-              NTU-Transformer for planar surface codes and bivariate bicycle codes.
-              The architecture deliberately separates the reusable local perception
-              backbone from the target-specific global decision stage.
+              The Transformer route treats decoding as a direct logical
+              classification problem. Rather than outputting a correction on every
+              data qubit, the model predicts whether each logical qubit has flipped.
+              This is useful when the downstream task only needs logical status.
             </p>
             <p>
-              This separation is what removes the large-distance cold start. The
-              transferred checkpoint already knows how local detector patterns relate
-              to physical error mechanisms; target training mainly adapts to the
-              enlarged boundary and the final logical observable.
+              The architecture is built around the invariance story. Local detector
+              perception is encoded first; spatial attention operates inside each
+              round; temporal recurrence carries information along the measurement
+              axis; and cross attention performs the final global logical readout.
             </p>
             <div class="callout">
-              <strong>Project-page takeaway.</strong>
-              The model is not merely initialized with old weights. Its coordinates,
-              embeddings, and attention phases are constructed so those weights still
-              mean the same physical thing after the code expands.
+              <strong>Design implication.</strong>
+              The model separates local code physics from target-size-specific
+              readout, which is why transferred weights can still be meaningful at
+              a larger distance.
             </div>
           </div>
         </div>
+
+        <div class="decoder-route-grid method-route-grid">
+          <article>
+            <h3>GNN-based neural-BP: physical-error prediction</h3>
+            <p>
+              The neural-BP route works on the Tanner graph and predicts physical
+              error probabilities on data qubits. Messages pass between variable
+              nodes and check nodes, following the code's parity-check structure.
+            </p>
+          </article>
+          <article>
+            <h3>Parameterized aggregation weight</h3>
+            <p>
+              Instead of using fixed belief-propagation updates, neural-BP learns
+              parameterized aggregation weights. This keeps the graph-decoding
+              inductive bias while allowing the update rule to adapt to realistic
+              circuit noise and code-specific correlations.
+            </p>
+          </article>
+        </div>
       </section>
 
-      <section id="lab" class="section lab-section">
+      <section id="interaction" class="section lab-section">
         <div class="section-heading">
-          <p class="eyebrow">Interactive</p>
-          <h2>Cross-distance transfer lab</h2>
+          <p class="eyebrow">Interaction</p>
+          <h2>Explore QEC basics, detector events, and local neural perception.</h2>
           <p>
-            A browser-side toy model of the paper's transfer mechanism. The points
-            are synthetic, but the controls reflect the NTU story: preserve the
-            local algebraic motif, then compare transfer initialization with
-            scratch training as the code distance grows.
+            This browser-side sandbox is an explanatory visualization rather than
+            a decoder benchmark. It uses exact <code>[[n,k,d]]</code> code sizes
+            for the displayed examples, then illustrates how data-qubit errors
+            create detector events and why the same local motif can be reused by a
+            neural network.
           </p>
         </div>
 
         <div class="lab-shell">
-          <div class="controls" aria-label="Transfer demo controls">
+          <div class="controls" aria-label="QEC interaction controls">
             <fieldset>
               <legend>Code family</legend>
               <div class="segmented" role="group" aria-label="Code family">
@@ -286,177 +431,87 @@
             </fieldset>
 
             <label>
-              Target scale
-              <select id="target-scale"></select>
+              Code instance
+              <select id="code-instance"></select>
             </label>
 
             <fieldset>
-              <legend>Initialization</legend>
-              <div class="segmented" role="group" aria-label="Initialization">
-                <button class="seg active" type="button" data-mode="transfer">NTU transfer</button>
-                <button class="seg" type="button" data-mode="scratch">Scratch</button>
+              <legend>View</legend>
+              <div class="segmented three" role="group" aria-label="Visualization mode">
+                <button class="seg active" type="button" data-view="syndrome">Errors</button>
+                <button class="seg" type="button" data-view="invariance">Invariance</button>
+                <button class="seg" type="button" data-view="network">Network</button>
               </div>
             </fieldset>
 
             <label>
-              Fine-tuning steps
-              <input id="step-slider" type="range" min="0" max="5000" step="50" value="1200" />
-            </label>
-
-            <label>
-              Syndrome density
-              <input id="noise-slider" type="range" min="2" max="18" step="1" value="8" />
+              Data-qubit errors
+              <input id="error-slider" type="range" min="1" max="8" step="1" value="3" />
             </label>
 
             <div class="control-actions">
-              <button id="advance-btn" class="button small" type="button">Advance 200</button>
-              <button id="resample-btn" class="button small muted" type="button">Resample</button>
+              <button id="resample-btn" class="button small" type="button">Sample error</button>
+              <button id="center-btn" class="button small muted" type="button">Center motif</button>
+            </div>
+
+            <div class="legend">
+              <span><i class="legend-dot data"></i> data qubit</span>
+              <span><i class="legend-dot error"></i> physical error</span>
+              <span><i class="legend-dot detector"></i> detector event</span>
+              <span><i class="legend-dot motif"></i> local perception</span>
             </div>
           </div>
 
           <div class="lab-visuals">
             <div class="lattice-card">
               <div class="panel-title">
-                <span>Source motif</span>
-                <strong id="source-label">d = 7</strong>
+                <span>Code layout</span>
+                <strong id="layout-label">[[49,1,7]]</strong>
               </div>
-              <svg id="source-lattice" viewBox="0 0 440 330" role="img" aria-label="Source code motif"></svg>
+              <svg id="code-lattice" viewBox="0 0 520 360" role="img" aria-label="Data-qubit layout"></svg>
             </div>
             <div class="lattice-card">
               <div class="panel-title">
-                <span>Target lattice</span>
-                <strong id="target-label">d = 19</strong>
+                <span>Detector events</span>
+                <strong id="detector-label">0 events</strong>
               </div>
-              <svg id="target-lattice" viewBox="0 0 440 330" role="img" aria-label="Target code lattice"></svg>
+              <svg id="detector-lattice" viewBox="0 0 520 360" role="img" aria-label="Detector event layout"></svg>
             </div>
-            <div class="chart-card">
+            <div class="chart-card perception-card">
               <div class="panel-title">
-                <span>Training dynamics</span>
-                <strong id="step-readout">1200 steps</strong>
+                <span>Figure 1 intuition</span>
+                <strong id="view-label">Errors -> detectors</strong>
               </div>
-              <svg id="curve-chart" viewBox="0 0 520 330" role="img" aria-label="Synthetic training dynamics"></svg>
+              <svg id="perception-map" viewBox="0 0 1040 330" role="img" aria-label="QEC invariance and neural perception illustration"></svg>
             </div>
           </div>
 
-          <div class="readout-grid">
+          <div class="readout-grid qec-readout">
             <div>
-              <span>Accuracy proxy</span>
-              <strong id="accuracy-readout">0.86</strong>
+              <span>Code</span>
+              <strong id="code-readout">[[49,1,7]]</strong>
             </div>
             <div>
-              <span>LER proxy</span>
-              <strong id="ler-readout">1.7e-6</strong>
+              <span>Data qubits</span>
+              <strong id="n-readout">n = 49</strong>
             </div>
             <div>
-              <span>Compute law</span>
-              <strong id="compute-readout">Gamma = 1.27</strong>
+              <span>Logical qubits</span>
+              <strong id="k-readout">k = 1</strong>
             </div>
             <div>
-              <span>State</span>
-              <strong id="state-readout">transfer lift-off</strong>
+              <span>Distance</span>
+              <strong id="d-readout">d = 7</strong>
+            </div>
+            <div>
+              <span>Decoder input</span>
+              <strong id="input-readout">7 x 48</strong>
+            </div>
+            <div>
+              <span>Current syndrome</span>
+              <strong id="syndrome-readout">0 detector events</strong>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section id="results" class="section">
-        <div class="section-heading">
-          <p class="eyebrow">Experiments</p>
-          <h2>Surface-code and BB-code evidence</h2>
-          <p>
-            The experiments test whether the structural alignment actually improves
-            decoding and training dynamics under circuit-level depolarizing noise.
-          </p>
-        </div>
-
-        <article class="result-story">
-          <div class="prose">
-            <p class="eyebrow">Planar surface code</p>
-            <h3>Transfer reaches larger distances without the cold-start plateau.</h3>
-            <p>
-              Surface-code experiments use a standard Z-basis memory task with
-              exactly <code>d</code> syndrome extraction rounds. The transferred
-              NTU-Transformer is first trained on <code>d = 7</code>, then sequentially
-              initialized and fine-tuned at larger distances.
-            </p>
-            <p>
-              At <code>p = 0.3%</code>, NTU-Transformer significantly outperforms
-              standard PyMatching and approaches the correlated matching baseline.
-              The detector-error binning shows the important failure mode: matching
-              methods degrade in high-weight, highly degenerate regimes, while the
-              neural decoder remains more accurate.
-            </p>
-            <p>
-              The training plot isolates the transfer advantage. Scratch-initialized
-              large-distance models can remain near random guessing for thousands of
-              steps. Transfer initialization bypasses this collapse and produces an
-              immediate lift-off.
-            </p>
-          </div>
-          <figure class="result-card">
-            <img src="assets/surface.png" alt="Surface-code decoding performance and transfer dynamics" />
-            <figcaption>
-              Surface-code decoding performance, detector-error robustness, and
-              transfer-versus-scratch training dynamics.
-            </figcaption>
-          </figure>
-        </article>
-
-        <article class="result-story flipped">
-          <div class="prose">
-            <p class="eyebrow">Bivariate bicycle codes</p>
-            <h3>The same transfer principle works beyond planar geometry.</h3>
-            <p>
-              BB codes are quasi-cyclic quantum LDPC codes with non-local hypergraph
-              structure. NTU transfers from the <code>[[72,12,6]]</code> base code to
-              the expanded <code>[[144,12,12]]</code> lattice by preserving the
-              polynomial-induced neighborhood alignment.
-            </p>
-            <p>
-              On the base code, the global NTU-Transformer outperforms BP+OSD and
-              advanced Relay-BP variants across the tested physical error rates. In
-              the high detector-error regime, it remains more stable than traditional
-              belief-propagation heuristics.
-            </p>
-            <p>
-              Scaling to <code>[[144,12,12]]</code> is the stress test. Scratch
-              Transformer and GNN models stagnate near random guessing, while
-              transferred models rapidly realign to the larger cyclic boundary.
-            </p>
-          </div>
-          <figure class="result-card">
-            <img src="assets/bb.png" alt="BB-code decoding performance and transfer dynamics" />
-            <figcaption>
-              BB-code performance and transfer dynamics from [[72,12,6]] to
-              [[144,12,12]].
-            </figcaption>
-          </figure>
-        </article>
-
-        <div class="result-grid">
-          <figure class="result-card">
-            <img src="assets/surface-extended.png" alt="Extended transfer dynamics on surface codes" />
-            <figcaption>
-              <strong>Extended scaling.</strong> Transferred models avoid the
-              random-guessing basin across d = 11, 15, 19, 23, and 25.
-            </figcaption>
-          </figure>
-
-          <figure class="result-card">
-            <img src="assets/surface-ablation.png" alt="Surface-code ablation for RoPE and stem" />
-            <figcaption>
-              <strong>Surface ablation.</strong> Physical-coordinate RoPE and the
-              local one-ring stem jointly accelerate transfer.
-            </figcaption>
-          </figure>
-
-          <figure class="result-card">
-            <img src="assets/bb-ablation.png" alt="BB-code ablation for RoPE and embedding" />
-            <figcaption>
-              <strong>BB ablation.</strong> Breaking either positional phase alignment
-              or polynomial-neighborhood alignment removes the early transfer advantage.
-            </figcaption>
-          </figure>
         </div>
       </section>
 

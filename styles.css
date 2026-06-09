@@ -101,6 +101,8 @@ a {
 .nav-links {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 22px;
   color: var(--muted);
   font-size: 0.94rem;
@@ -387,6 +389,10 @@ code {
   color: var(--muted);
 }
 
+.method-route-grid {
+  margin-top: 28px;
+}
+
 .callout {
   margin-top: 22px;
   padding: 18px;
@@ -395,13 +401,32 @@ code {
   color: #314147;
 }
 
-.approach-grid {
+.concept-grid,
+.approach-grid,
+.decoder-route-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
+.concept-grid {
+  margin-bottom: 30px;
+}
+
+.decoder-route-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 24px;
+}
+
+.code-family-grid {
+  display: grid;
+  gap: 14px;
+}
+
 .approach-grid article,
+.concept-grid article,
+.decoder-route-grid article,
+.code-family-grid article,
 .result-card,
 .lattice-card,
 .chart-card,
@@ -411,8 +436,17 @@ code {
   background: #fff;
 }
 
-.approach-grid article {
+.approach-grid article,
+.concept-grid article,
+.decoder-route-grid article,
+.code-family-grid article {
   padding: 22px;
+}
+
+.code-family-grid strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1.08rem;
 }
 
 .step-index {
@@ -423,9 +457,18 @@ code {
 }
 
 .approach-grid p,
+.concept-grid p,
+.decoder-route-grid p,
+.code-family-grid p,
 .result-card figcaption,
 .wide-figure figcaption {
   color: var(--muted);
+}
+
+.concept-grid p,
+.decoder-route-grid p,
+.code-family-grid p {
+  margin-bottom: 0;
 }
 
 .wide-figure {
@@ -517,6 +560,10 @@ input[type="range"] {
   background: var(--soft);
 }
 
+.segmented.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .seg {
   min-height: 34px;
   border: 0;
@@ -538,6 +585,46 @@ input[type="range"] {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.legend {
+  display: grid;
+  gap: 7px;
+  padding-top: 2px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 11px;
+  height: 11px;
+  display: inline-block;
+  border: 1px solid #cbd8dc;
+  border-radius: 50%;
+}
+
+.legend-dot.data {
+  background: #dce8eb;
+}
+
+.legend-dot.error {
+  background: var(--red);
+}
+
+.legend-dot.detector {
+  background: var(--amber);
+}
+
+.legend-dot.motif {
+  border-color: var(--teal);
+  border-radius: 3px;
+  background: rgba(22, 115, 107, 0.18);
 }
 
 .lab-visuals {
@@ -585,6 +672,10 @@ svg {
   gap: 10px;
 }
 
+.readout-grid.qec-readout {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .readout-grid div {
   padding: 14px;
   border: 1px solid var(--line);
@@ -603,6 +694,10 @@ svg {
 
 .readout-grid strong {
   font-size: 1.08rem;
+}
+
+.perception-card {
+  min-height: 300px;
 }
 
 .result-grid {
@@ -827,6 +922,39 @@ svg {
   stroke-width: 1;
 }
 
+.qubit {
+  fill: #dce8eb;
+  stroke: #ffffff;
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.qubit.error {
+  fill: var(--red);
+}
+
+.qubit.selected {
+  stroke: #0d403d;
+  stroke-width: 2.4;
+}
+
+.check {
+  fill: #edf3f4;
+  stroke: #ffffff;
+  stroke-width: 1;
+}
+
+.check.event {
+  fill: var(--amber);
+  stroke: #8d5d12;
+  stroke-width: 1.2;
+}
+
+.check.local {
+  stroke: var(--teal);
+  stroke-width: 1.6;
+}
+
 .detector {
   fill: #dce8eb;
   stroke: #ffffff;
@@ -848,6 +976,12 @@ svg {
   fill: rgba(22, 115, 107, 0.18);
   stroke: var(--teal);
   stroke-width: 2;
+}
+
+.detector-window {
+  fill: rgba(184, 121, 24, 0.13);
+  stroke: rgba(184, 121, 24, 0.78);
+  stroke-width: 1.8;
 }
 
 .bb-plane {
@@ -890,6 +1024,76 @@ svg {
   font-weight: 700;
 }
 
+.mini-grid-line {
+  stroke: #dfe8eb;
+  stroke-width: 1.2;
+}
+
+.mini-motif {
+  fill: rgba(22, 115, 107, 0.2);
+  stroke: var(--teal);
+  stroke-width: 2;
+}
+
+.perception-node {
+  fill: #ffffff;
+  stroke: #d7e1e4;
+  stroke-width: 1.5;
+}
+
+.perception-node.hot {
+  fill: #fff8f7;
+  stroke: #e8b7b5;
+}
+
+.perception-node.warm {
+  fill: #fffaf2;
+  stroke: #e5c58e;
+}
+
+.perception-node.cool {
+  fill: #f2faf8;
+  stroke: #a9cfca;
+}
+
+.perception-title {
+  fill: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.perception-body,
+.perception-label,
+.perception-note {
+  fill: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.perception-label {
+  fill: var(--ink);
+}
+
+.perception-note {
+  font-size: 16px;
+}
+
+.perception-equation {
+  fill: #0f5f58;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.perception-arrow {
+  stroke: #9eb5bc;
+  stroke-width: 2;
+}
+
+.perception-arrow-head {
+  fill: #9eb5bc;
+}
+
 @media (max-width: 960px) {
   .hero,
   .lab-shell,
@@ -915,7 +1119,13 @@ svg {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .readout-grid.qec-readout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .concept-grid,
   .approach-grid,
+  .decoder-route-grid,
   .result-grid {
     grid-template-columns: 1fr;
   }
@@ -938,7 +1148,8 @@ svg {
 
   .nav-links {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
+    flex-wrap: wrap;
     gap: 10px;
     font-size: 0.78rem;
   }
@@ -950,7 +1161,8 @@ svg {
   }
 
   .lab-visuals,
-  .readout-grid {
+  .readout-grid,
+  .readout-grid.qec-readout {
     grid-template-columns: 1fr;
   }
 
