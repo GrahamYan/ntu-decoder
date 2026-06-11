@@ -100,7 +100,7 @@
           </p>
         </div>
 
-        <article class="split-section" style="display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: center; margin-bottom: 72px;">
+        <article class="split-section" style="display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; margin-bottom: 72px;">
           <figure class="result-card" style="margin: 0; padding: 0; border: none;">
             <img src="assets/figure-1a.png" alt="Scale invariance in QEC codes" style="width: 100%; border-radius: 8px; box-shadow: var(--shadow);" />
           </figure>
@@ -118,14 +118,15 @@
           </div>
         </article>
 
-        <article class="split-section" style="display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: center; margin-bottom: 72px;">
+        <article class="split-section" style="display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); align-items: center; margin-bottom: 72px;">
           <div class="prose">
             <h3>How does the invariance affect the neural decoder?</h3>
             <p>
               Neural decoders process syndrome data by executing representation learning for each detector or data qubit node. This process works by iteratively aggregating and fusing latent features from a node's local neighborhood. This localized computational paradigm is fundamentally isomorphic to the scale, spatial, and temporal invariance of the QEC code. 
             </p>
             <p>
-              Because the neighbor connectivity and algebraic shift rules do not change when the code scales, the network parameters optimized for local feature aggregation remain universally applicable across code distances. By explicitly decoupling the network architecture, we ensure that the heavy local perception backbone (which captures the invariant topological motifs) can be seamlessly transferred to massive target lattices without representation collapse. This paradigm shift completely bypasses the prolonged optimization plateaus of training from scratch, requiring only the lightweight global decision layer to be briefly fine-tuned to adapt to the newly expanded physical boundaries.
+              Because the neighbor connectivity and algebraic shift rules do not change when the code scales, the network parameters optimized for local feature aggregation remain universally applicable across code distances. By explicitly decoupling the network architecture, we ensure that the heavy local perception backbone (which captures the invariant topological motifs) can be seamlessly transferred to massive target lattices without representation collapse. 
+              <!-- This paradigm shift completely bypasses the prolonged optimization plateaus of training from scratch, requiring only the lightweight global decision layer to be briefly fine-tuned to adapt to the newly expanded physical boundaries. -->
             </p>
           </div>
           <figure class="result-card" style="margin: 0; padding: 0; border: none;">
