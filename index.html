@@ -157,10 +157,16 @@
               <select id="code-instance"></select>
             </label>
 
-            <label>
-              Local motif complexity
-              <input id="error-slider" type="range" min="1" max="4" step="1" value="2" />
-            </label>
+            <fieldset class="pattern-control">
+              <legend>Error pattern</legend>
+              <div class="segmented pattern-segmented" role="group" aria-label="Error pattern">
+                <button class="seg pattern-seg" type="button" data-pattern="single">Single</button>
+                <button class="seg pattern-seg active" type="button" data-pattern="pair">Pair</button>
+                <button class="seg pattern-seg" type="button" data-pattern="cluster">Cluster</button>
+                <button class="seg pattern-seg" type="button" data-pattern="wrap">Boundary wrap</button>
+              </div>
+              <p class="pattern-note" id="pattern-note">Current: 2 physical errors.</p>
+            </fieldset>
 
             <div class="control-actions">
               <button id="resample-btn" class="button small" type="button">Sample pattern</button>

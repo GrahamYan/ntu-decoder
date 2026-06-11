@@ -694,6 +694,32 @@ input[type="range"] {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.pattern-control {
+  display: grid;
+  gap: 8px;
+}
+
+.pattern-segmented {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pattern-seg {
+  min-height: 40px;
+  padding: 0 8px;
+}
+
+.pattern-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #dfe9ec;
+  border-radius: 8px;
+  color: var(--muted);
+  background: #f8fbfb;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .seg {
   min-height: 42px;
   border: 0;

@@ -1,9 +1,10 @@
 const state = {
   family: "surface",
   instanceId: "surface-7",
-  errorCount: 2,
+  errorPattern: "pair",
   seed: Math.floor(Math.random() * 10000),
   anchoredErrors: null,
+  anchoredPattern: null,
 };
 
 const codeFamilies = {
@@ -39,9 +40,28 @@ const bbGenerators = {
   ],
 };
 
+const errorPatterns = {
+  single: {
+    count: 1,
+    description: "one physical error and its immediate detector response.",
+  },
+  pair: {
+    count: 2,
+    description: "two nearby errors, keeping the same local motif as the code size changes.",
+  },
+  cluster: {
+    count: 4,
+    description: "a compact local cluster that produces a richer syndrome pattern.",
+  },
+  wrap: {
+    count: 1,
+    description: "an edge error selected to expose the boundary geometry.",
+  },
+};
+
 const els = {
   codeInstance: document.querySelector("#code-instance"),
-  errorSlider: document.querySelector("#error-slider"),
+  patternNote: document.querySelector("#pattern-note"),
   layoutLabel: document.querySelector("#layout-label"),
   codeLattice: document.querySelector("#code-lattice"),
   codeReadout: document.querySelector("#code-readout"),
@@ -83,44 +103,47 @@ function optionLabel(instance, family) {
   return `${codeLabel(instance)} ${instance.rows}x${instance.cols} torus`;
 }
 
-function generateAnchoredErrors() {
+function generateAnchoredErrors(instance) {
   const random = rng(state.seed);
   const firstType = random() > 0.5 ? "X" : "Z";
-  const errors = [
-    {
-      dRow: 0,
-      dCol: 0,
-      block: "L",
-      type: firstType,
-    },
-  ];
+  const secondType = firstType === "X" ? "Z" : "X";
+  const centerRow = Math.floor(instance.rows / 2);
+  const centerCol = Math.floor(instance.cols / 2);
+  let errors = [];
 
-  if (state.errorCount > 1) {
-    errors.push({
-      dRow: firstType === "Z" ? -1 : 0,
-      dCol: 1,
-      block: "R",
-      type: firstType,
-    });
+  if (state.errorPattern === "single") {
+    errors = [{ dRow: 0, dCol: 0, block: "L", type: firstType }];
   }
 
-  while (errors.length < state.errorCount) {
-    const dRow = Math.floor(random() * 3) - 1;
-    const dCol = Math.floor(random() * 3) - 1;
-    const block = random() > 0.5 ? "L" : "R";
-    const type = random() > 0.5 ? "X" : "Z";
-    const key = `${dRow},${dCol},${block}`;
-    if (!errors.some((item) => `${item.dRow},${item.dCol},${item.block}` === key)) {
-      errors.push({ dRow, dCol, block, type });
-    }
+  if (state.errorPattern === "pair") {
+    errors = [
+      { dRow: 0, dCol: 0, block: "L", type: firstType },
+      { dRow: firstType === "Z" ? -1 : 0, dCol: 1, block: "R", type: firstType },
+    ];
+  }
+
+  if (state.errorPattern === "cluster") {
+    errors = [
+      { dRow: 0, dCol: 0, block: "L", type: firstType },
+      { dRow: -1, dCol: 1, block: "R", type: firstType },
+      { dRow: 1, dCol: -1, block: "L", type: secondType },
+      { dRow: 0, dCol: -1, block: "R", type: random() > 0.5 ? "X" : "Z" },
+    ];
+  }
+
+  if (state.errorPattern === "wrap") {
+    errors = state.family === "bb"
+      ? [{ absolute: true, row: 1, col: 1, block: "L", type: "Z" }]
+      : [{ absolute: true, row: 0, col: centerCol, block: "L", type: "X" }];
   }
 
   state.anchoredErrors = errors;
+  state.anchoredPattern = state.errorPattern;
 }
 
 function getPhysicalErrors(instance) {
-  if (!state.anchoredErrors || state.anchoredErrors.length !== state.errorCount) {
-    generateAnchoredErrors();
+  if (!state.anchoredErrors || state.anchoredPattern !== state.errorPattern) {
+    generateAnchoredErrors(instance);
   }
 
   const centerRow = Math.floor(instance.rows / 2);
@@ -129,19 +152,37 @@ function getPhysicalErrors(instance) {
   return state.anchoredErrors.map((error) => {
     if (state.family === "surface") {
       return {
-        row: Math.min(instance.rows - 1, Math.max(0, centerRow + error.dRow)),
-        col: Math.min(instance.cols - 1, Math.max(0, centerCol + error.dCol)),
+        row: Math.min(instance.rows - 1, Math.max(0, error.absolute ? error.row : centerRow + error.dRow)),
+        col: Math.min(instance.cols - 1, Math.max(0, error.absolute ? error.col : centerCol + error.dCol)),
         type: error.type,
       };
     }
 
     return {
-      row: wrap(centerRow + error.dRow, instance.rows),
-      col: wrap(centerCol + error.dCol, instance.cols),
+      row: wrap(error.absolute ? error.row : centerRow + error.dRow, instance.rows),
+      col: wrap(error.absolute ? error.col : centerCol + error.dCol, instance.cols),
       block: error.block,
       type: error.type,
     };
   });
+}
+
+function patternSummary(errors, events) {
+  const count = errors.length;
+  const eventCount = events.length;
+  const errorWord = count === 1 ? "error" : "errors";
+  const eventWord = eventCount === 1 ? "event" : "events";
+  const pattern = errorPatterns[state.errorPattern];
+
+  if (state.errorPattern === "wrap" && state.family === "bb") {
+    return `Current: ${count} physical ${errorWord}, ${eventCount} detector ${eventWord}. Boundary wrap exposes a cyclic BB edge.`;
+  }
+
+  if (state.errorPattern === "wrap") {
+    return `Current: ${count} physical ${errorWord}, ${eventCount} detector ${eventWord}. Boundary example shows edge-local checks.`;
+  }
+
+  return `Current: ${count} physical ${errorWord}, ${eventCount} detector ${eventWord}; ${pattern.description}`;
 }
 
 function toggleEvent(events, key) {
@@ -500,6 +541,7 @@ function updateUI() {
   els.kReadout.textContent = `k = ${instance.k}`;
   els.dReadout.textContent = `d = ${instance.d}`;
   els.syndromeReadout.textContent = `${events.length}`;
+  els.patternNote.textContent = patternSummary(errors, events);
   document.querySelectorAll(".bb-only").forEach((item) => {
     item.hidden = state.family !== "bb";
   });
@@ -513,24 +555,32 @@ document.querySelectorAll("[data-family]").forEach((button) => {
     document.querySelectorAll("[data-family]").forEach((item) => item.classList.toggle("active", item === button));
     populateInstances();
     state.anchoredErrors = null;
+    state.anchoredPattern = null;
     updateUI();
   });
 });
 
 els.codeInstance.addEventListener("change", (event) => {
   state.instanceId = event.target.value;
+  state.anchoredErrors = null;
+  state.anchoredPattern = null;
   updateUI();
 });
 
-els.errorSlider.addEventListener("input", (event) => {
-  state.errorCount = Number(event.target.value);
-  state.anchoredErrors = null;
-  updateUI();
+document.querySelectorAll("[data-pattern]").forEach((button) => {
+  button.addEventListener("click", () => {
+    state.errorPattern = button.dataset.pattern;
+    document.querySelectorAll("[data-pattern]").forEach((item) => item.classList.toggle("active", item === button));
+    state.anchoredErrors = null;
+    state.anchoredPattern = null;
+    updateUI();
+  });
 });
 
 els.resampleBtn.addEventListener("click", () => {
   state.seed = Math.floor(Math.random() * 10000);
   state.anchoredErrors = null;
+  state.anchoredPattern = null;
   updateUI();
 });
 
