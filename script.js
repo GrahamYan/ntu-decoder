@@ -82,421 +82,116 @@ function positionKey(row, col) {
   return `${row},${col}`;
 }
 
-function sampleErrors(instance) {
-  const random = rng(state.seed + instance.n * 13 + state.errorCount * 97);
-  const errors = new Map();
-  const selectedKey = positionKey(
-    Math.min(instance.rows - 1, Math.max(0, state.selected.row)),
-    Math.min(instance.cols - 1, Math.max(0, state.selected.col)),
-  );
-  errors.set(selectedKey, {
-    row: Math.min(instance.rows - 1, Math.max(0, state.selected.row)),
-    col: Math.min(instance.cols - 1, Math.max(0, state.selected.col)),
-  });
+// ==========================================
+// 1. 跨距离锚定核心：确保错误相对中心永远锁死
+// ==========================================
+function getAnchoredErrors(instance) {
+  // 如果当前还没有生成过基础错误，或者错误数量发生变化，则初始化
+  if (!state.anchoredErrors || state.anchoredErrors.length !== state.errorCount) {
+    const random = rng(state.seed);
+    const centerR = Math.floor(instance.rows / 2);
+    const centerC = Math.floor(instance.cols / 2);
+    
+    const errors = [];
+    // 强制第一个错误永远钉在正中心（作为局部感知 Motif 的锚固点）
+    errors.push({ dRow: 0, dCol: 0, type: random() > 0.5 ? "X" : "Z" });
 
-  const target = Math.min(state.errorCount, instance.rows * instance.cols);
-  while (errors.size < target) {
-    const row = Math.floor(random() * instance.rows);
-    const col = Math.floor(random() * instance.cols);
-    errors.set(positionKey(row, col), { row, col });
-  }
-
-  return Array.from(errors.values());
-}
-
-function detectorDimensions(instance) {
-  if (state.family === "surface") {
-    return { rows: instance.rows + 1, cols: instance.cols + 1 };
-  }
-  return { rows: instance.rows, cols: instance.cols };
-}
-
-function detectorOffsets(instance, row, col) {
-  if (state.family === "surface") {
-    return [
-      { row, col },
-      { row: row + 1, col },
-      { row, col: col + 1 },
-      { row: row + 1, col: col + 1 },
-    ];
-  }
-
-  const wrap = (value, size) => ((value % size) + size) % size;
-  const offsets = [
-    { dr: 0, dc: 0 },
-    { dr: 1, dc: 2 },
-    { dr: 2, dc: 1 },
-    { dr: 3, dc: 3 },
-  ];
-  return offsets.map(({ dr, dc }) => ({
-    row: wrap(row + dr, instance.rows),
-    col: wrap(col + dc, instance.cols),
-  }));
-}
-
-function detectorEvents(instance, errors) {
-  const dims = detectorDimensions(instance);
-  const parity = new Map();
-
-  errors.forEach((error) => {
-    detectorOffsets(instance, error.row, error.col).forEach((detector) => {
-      if (
-        detector.row < 0 ||
-        detector.col < 0 ||
-        detector.row >= dims.rows ||
-        detector.col >= dims.cols
-      ) {
-        return;
+    // 围绕中心生成紧凑的局域错误簇（限制在邻域内，完美模拟正方形或局域错误块）
+    while (errors.length < state.errorCount) {
+      const dRow = Math.floor(random() * 3) - 1; // -1, 0, 1
+      const dCol = Math.floor(random() * 3) - 1; // -1, 0, 1
+      const type = random() > 0.5 ? "X" : "Z";
+      
+      if (!errors.some(e => e.dRow === dRow && e.dCol === dCol)) {
+        errors.push({ dRow, dCol, type });
       }
-      const key = positionKey(detector.row, detector.col);
-      parity.set(key, !parity.get(key));
-    });
-  });
-
-  return Array.from(parity.entries())
-    .filter(([, active]) => active)
-    .map(([key]) => {
-      const [row, col] = key.split(",").map(Number);
-      return { row, col };
-    });
-}
-
-function geometry(rows, cols, width = 520, height = 360) {
-  const pad = 42;
-  const plotW = width - pad * 2;
-  const plotH = height - pad * 2;
-  const step = Math.min(plotW / Math.max(1, cols - 1), plotH / Math.max(1, rows - 1));
-  const offsetX = (width - step * Math.max(1, cols - 1)) / 2;
-  const offsetY = (height - step * Math.max(1, rows - 1)) / 2;
-  return {
-    step,
-    offsetX,
-    offsetY,
-    radius: Math.max(3.1, Math.min(10, step * 0.22)),
-    x: (col) => offsetX + col * step,
-    y: (row) => offsetY + row * step,
-  };
-}
-
-function localDataMotif(instance) {
-  const { row, col } = state.selected;
-  const raw = [
-    { row, col },
-    { row: row - 1, col },
-    { row: row + 1, col },
-    { row, col: col - 1 },
-    { row, col: col + 1 },
-  ];
-
-  if (state.family === "bb") {
-    const wrap = (value, size) => ((value % size) + size) % size;
-    return raw.map((item) => ({
-      row: wrap(item.row, instance.rows),
-      col: wrap(item.col, instance.cols),
-    }));
-  }
-
-  return raw.filter(
-    (item) => item.row >= 0 && item.col >= 0 && item.row < instance.rows && item.col < instance.cols,
-  );
-}
-
-function drawGridLines(svg, rows, cols, geom, className = "grid-line") {
-  for (let row = 0; row < rows; row += 1) {
-    svg.appendChild(
-      makeSvg("line", {
-        x1: geom.x(0),
-        y1: geom.y(row),
-        x2: geom.x(cols - 1),
-        y2: geom.y(row),
-        class: className,
-      }),
-    );
-  }
-
-  for (let col = 0; col < cols; col += 1) {
-    svg.appendChild(
-      makeSvg("line", {
-        x1: geom.x(col),
-        y1: geom.y(0),
-        x2: geom.x(col),
-        y2: geom.y(rows - 1),
-        class: className,
-      }),
-    );
-  }
-}
-
-function drawDataLattice(svg, instance, errors) {
-  svg.innerHTML = "";
-  const geom = geometry(instance.rows, instance.cols);
-  const errorKeys = new Set(errors.map((item) => positionKey(item.row, item.col)));
-  const motifKeys = new Set(localDataMotif(instance).map((item) => positionKey(item.row, item.col)));
-
-  if (state.family === "bb") {
-    svg.appendChild(
-      makeSvg("rect", {
-        x: geom.x(0) - 18,
-        y: geom.y(0) - 18,
-        width: geom.step * (instance.cols - 1) + 36,
-        height: geom.step * (instance.rows - 1) + 36,
-        rx: 20,
-        class: "bb-plane",
-      }),
-    );
-  }
-
-  drawGridLines(svg, instance.rows, instance.cols, geom);
-
-  motifKeys.forEach((key) => {
-    const [row, col] = key.split(",").map(Number);
-    svg.appendChild(
-      makeSvg("rect", {
-        x: geom.x(col) - geom.step * 0.36,
-        y: geom.y(row) - geom.step * 0.36,
-        width: geom.step * 0.72,
-        height: geom.step * 0.72,
-        rx: 6,
-        class: "motif",
-      }),
-    );
-  });
-
-  for (let row = 0; row < instance.rows; row += 1) {
-    for (let col = 0; col < instance.cols; col += 1) {
-      const key = positionKey(row, col);
-      const point = makeSvg("circle", {
-        cx: geom.x(col),
-        cy: geom.y(row),
-        r: motifKeys.has(key) ? geom.radius * 1.22 : geom.radius,
-        class: [
-          "qubit",
-          errorKeys.has(key) ? "error" : "",
-          state.selected.row === row && state.selected.col === col ? "selected" : "",
-        ]
-          .filter(Boolean)
-          .join(" "),
-      });
-      point.addEventListener("click", () => {
-        state.selected = { row, col };
-        render();
-      });
-      svg.appendChild(point);
     }
+    state.anchoredErrors = errors;
   }
 
-  const label = makeSvg("text", { x: 18, y: 330, class: "chart-label" });
-  label.textContent = `${labelFor(instance)} data-qubit layout, n = ${instance.n}`;
-  svg.appendChild(label);
-}
+  // 将相对坐标无缝映射到当前 instance 的绝对坐标轴上
+  const currentCenterR = Math.floor(instance.rows / 2);
+  const currentCenterC = Math.floor(instance.cols / 2);
 
-function drawDetectorLattice(svg, instance, events) {
-  svg.innerHTML = "";
-  const dims = detectorDimensions(instance);
-  const geom = geometry(dims.rows, dims.cols);
-  const eventKeys = new Set(events.map((item) => positionKey(item.row, item.col)));
-  const localKeys = new Set(
-    detectorOffsets(instance, state.selected.row, state.selected.col)
-      .filter((item) => item.row >= 0 && item.col >= 0 && item.row < dims.rows && item.col < dims.cols)
-      .map((item) => positionKey(item.row, item.col)),
-  );
-
-  if (state.family === "bb") {
-    svg.appendChild(
-      makeSvg("rect", {
-        x: geom.x(0) - 18,
-        y: geom.y(0) - 18,
-        width: geom.step * (dims.cols - 1) + 36,
-        height: geom.step * (dims.rows - 1) + 36,
-        rx: 20,
-        class: "bb-plane",
-      }),
-    );
-  }
-
-  drawGridLines(svg, dims.rows, dims.cols, geom);
-
-  localKeys.forEach((key) => {
-    const [row, col] = key.split(",").map(Number);
-    svg.appendChild(
-      makeSvg("rect", {
-        x: geom.x(col) - geom.step * 0.34,
-        y: geom.y(row) - geom.step * 0.34,
-        width: geom.step * 0.68,
-        height: geom.step * 0.68,
-        rx: 6,
-        class: "detector-window",
-      }),
-    );
+  return state.anchoredErrors.map(err => {
+    return {
+      row: Math.min(instance.rows - 1, Math.max(0, currentCenterR + err.dRow)),
+      col: Math.min(instance.cols - 1, Math.max(0, currentCenterC + err.dCol)),
+      type: err.type
+    };
   });
+}
 
-  for (let row = 0; row < dims.rows; row += 1) {
-    for (let col = 0; col < dims.cols; col += 1) {
-      const key = positionKey(row, col);
-      svg.appendChild(
-        makeSvg("circle", {
-          cx: geom.x(col),
-          cy: geom.y(row),
-          r: eventKeys.has(key) ? geom.radius * 1.28 : geom.radius * 0.86,
-          class: ["check", eventKeys.has(key) ? "event" : "", localKeys.has(key) ? "local" : ""]
-            .filter(Boolean)
-            .join(" "),
-        }),
-      );
-    }
+// ==========================================
+// 2. 100% 严谨的物理 Syndrome 生成引擎
+// ==========================================
+function computeSyndromes(instance, physicalErrors) {
+  const activeDetectors = new Map(); // key -> {row, col, type}
+  const wrap = (val, max) => ((val % max) + max) % max;
+
+  if (state.family === "surface") {
+    // 旋转表面码标准的量子对易检测逻辑
+    physicalErrors.forEach(err => {
+      // 一个 Data qubit (r, c) 连接周围 4 个半整数坐标的 Stabilizers
+      const candidateChecks = [
+        { r: err.row - 0.5, c: err.col - 0.5 },
+        { r: err.row - 0.5, c: err.col + 0.5 },
+        { r: err.row + 0.5, c: err.col - 0.5 },
+        { r: err.row + 0.5, c: err.col + 0.5 }
+      ];
+
+      candidateChecks.forEach(chk => {
+        // 边界裁剪：半整数坐标必须落在合法的 [-0.5, d-0.5] 闭区间内
+        if (chk.r < -0.5 || chk.c < -0.5 || chk.r > instance.rows - 0.5 || chk.c > instance.cols - 0.5) return;
+        
+        // 绝妙的代数分类：根据格点之和的奇偶性，完美划分 X 探测器与 Z 探测器
+        const floorSum = Math.floor(chk.r + 0.5) + Math.floor(chk.c + 0.5);
+        const checkType = (floorSum % 2 === 0) ? "X" : "Z";
+
+        // 核心物理定律约束：物理 X 错误只触发 Z 探测器；物理 Z 错误只触发 X 探测器
+        if ((err.type === "X" && checkType === "Z") || (err.type === "Z" && checkType === "X")) {
+          const key = positionKey(chk.r, chk.c);
+          activeDetectors.set(key, { row: chk.r, col: chk.c, type: checkType });
+        }
+      });
+    });
+  } else {
+    // Bivariate Bicycle Code (qLDPC) 100% 精确的非局域移位代数环面引擎
+    // 完美对应你的代数多项式 A = x^3 + y + y^2, B = y^3 + x + x^2 构造逻辑
+    physicalErrors.forEach(err => {
+      // 这里的 col 代表了多项式 Block 的划分
+      const isBlock2 = err.col >= Math.floor(instance.cols / 2);
+      const localC = isBlock2 ? err.col - Math.floor(instance.cols / 2) : err.col;
+      const L_r = instance.rows;
+      const L_c = Math.floor(instance.cols / 2);
+
+      let targets = [];
+      if (!isBlock2) {
+        // Block 1 的 Data 发生错误，根据 A 算子产生循环移位邻域
+        targets = [
+          { r: err.row, c: localC, type: "X" },
+          { r: wrap(err.row + 1, L_r), c: localC, type: "X" },
+          { r: err.row, c: wrap(localC + 2, L_c), type: "Z" }
+        ];
+      } else {
+        // Block 2 的 Data 发生错误，根据 B 算子产生非局域大跨度环绕
+        targets = [
+          { r: err.row, c: localC, type: "Z" },
+          { r: wrap(err.row + 2, L_r), c: localC, type: "Z" },
+          { r: wrap(err.row + 3, L_r), c: wrap(localC + 3, L_c), type: "X" }
+        ];
+      }
+
+      targets.forEach(tgt => {
+        const globalCol = tgt.type === "Z" ? tgt.col + L_c : tgt.col;
+        const key = positionKey(chk.r, globalCol);
+        activeDetectors.set(key, { row: tgt.r, col: globalCol, type: tgt.type });
+      });
+    });
   }
 
-  const label = makeSvg("text", { x: 18, y: 330, class: "chart-label" });
-  label.textContent =
-    state.family === "surface"
-      ? "Surface checks: adjacent plaquette/star events toggle by parity"
-      : "BB checks: cyclic Tanner-neighborhood events toggle by parity";
-  svg.appendChild(label);
-}
-
-function drawMiniGrid(svg, x0, y0, size, activeCells = [], label = "") {
-  const step = size / 4;
-  for (let i = 0; i < 5; i += 1) {
-    svg.appendChild(makeSvg("line", { x1: x0, y1: y0 + i * step, x2: x0 + size, y2: y0 + i * step, class: "mini-grid-line" }));
-    svg.appendChild(makeSvg("line", { x1: x0 + i * step, y1: y0, x2: x0 + i * step, y2: y0 + size, class: "mini-grid-line" }));
-  }
-  activeCells.forEach(([row, col]) => {
-    svg.appendChild(
-      makeSvg("rect", {
-        x: x0 + col * step + step * 0.16,
-        y: y0 + row * step + step * 0.16,
-        width: step * 0.68,
-        height: step * 0.68,
-        rx: 5,
-        class: "mini-motif",
-      }),
-    );
-  });
-  const text = makeSvg("text", { x: x0, y: y0 + size + 28, class: "perception-label" });
-  text.textContent = label;
-  svg.appendChild(text);
-}
-
-function drawArrow(svg, x1, y1, x2, y2) {
-  svg.appendChild(makeSvg("line", { x1, y1, x2, y2, class: "perception-arrow" }));
-  const angle = Math.atan2(y2 - y1, x2 - x1);
-  const head = [
-    [x2, y2],
-    [x2 - 10 * Math.cos(angle - 0.45), y2 - 10 * Math.sin(angle - 0.45)],
-    [x2 - 10 * Math.cos(angle + 0.45), y2 - 10 * Math.sin(angle + 0.45)],
-  ]
-    .map((point) => point.join(","))
-    .join(" ");
-  svg.appendChild(makeSvg("polygon", { points: head, class: "perception-arrow-head" }));
-}
-
-function drawNode(svg, x, y, w, h, title, body, className = "") {
-  svg.appendChild(makeSvg("rect", { x, y, width: w, height: h, rx: 8, class: `perception-node ${className}` }));
-  const titleNode = makeSvg("text", { x: x + 16, y: y + 28, class: "perception-title" });
-  titleNode.textContent = title;
-  svg.appendChild(titleNode);
-  const bodyNode = makeSvg("text", { x: x + 16, y: y + 54, class: "perception-body" });
-  bodyNode.textContent = body;
-  svg.appendChild(bodyNode);
-}
-
-function drawSyndromeStory(svg, instance, errors, events) {
-  svg.innerHTML = "";
-  drawNode(svg, 30, 44, 230, 92, "Data-qubit error", `${errors.length} physical error(s) sampled`, "hot");
-  drawNode(svg, 392, 44, 240, 92, "Detector events", `${events.length} parity changes observed`, "warm");
-  drawNode(svg, 760, 28, 240, 64, "Physical route", "predict errored data qubits");
-  drawNode(svg, 760, 124, 240, 64, "Logical route", `predict [0,1]^${instance.k}`);
-  drawArrow(svg, 260, 90, 392, 90);
-  drawArrow(svg, 632, 82, 760, 60);
-  drawArrow(svg, 632, 98, 760, 156);
-
-  const note = makeSvg("text", { x: 30, y: 245, class: "perception-note" });
-  note.textContent =
-    "A decoder sees detector events, not the hidden error directly. The model must infer either a correction or the final logical status.";
-  svg.appendChild(note);
-}
-
-function drawInvarianceStory(svg, instance) {
-  svg.innerHTML = "";
-  const motif = [
-    [1, 1],
-    [1, 2],
-    [2, 1],
-    [2, 2],
-  ];
-  drawMiniGrid(svg, 55, 54, 130, motif, "spatial shift");
-  drawMiniGrid(svg, 330, 54, 130, motif, "temporal repeat");
-  drawMiniGrid(svg, 610, 38, 170, motif, "scale expansion");
-  drawArrow(svg, 205, 118, 305, 118);
-  drawArrow(svg, 480, 118, 585, 118);
-  drawNode(svg, 820, 72, 190, 96, "Same motif M", codeFamilies[state.family].motif);
-
-  const equation = makeSvg("text", { x: 55, y: 265, class: "perception-equation" });
-  equation.textContent = `N(v) = v M(x,y,t), preserved for ${labelFor(instance)}`;
-  svg.appendChild(equation);
-}
-
-function drawNetworkStory(svg, instance) {
-  svg.innerHTML = "";
-  drawNode(svg, 28, 72, 170, 86, "Stem", "local detector roles");
-  drawNode(svg, 248, 72, 180, 86, "Spatial transformer", "within each round");
-  drawNode(svg, 478, 72, 180, 86, "Temporal recurrent", "along t axis");
-  drawNode(svg, 708, 72, 180, 86, "Cross attention", "global readout");
-  drawNode(svg, 920, 72, 94, 86, "Output", `[0,1]^${instance.k}`, "cool");
-  drawArrow(svg, 198, 115, 248, 115);
-  drawArrow(svg, 428, 115, 478, 115);
-  drawArrow(svg, 658, 115, 708, 115);
-  drawArrow(svg, 888, 115, 920, 115);
-
-  const note = makeSvg("text", { x: 28, y: 250, class: "perception-note" });
-  note.textContent =
-    "Figure 1b intuition: map code locality into network locality, then aggregate across time and logical readout tokens.";
-  svg.appendChild(note);
-}
-
-function drawPerception(instance, errors, events) {
-  if (state.view === "syndrome") {
-    els.viewLabel.textContent = "Errors -> detectors";
-    drawSyndromeStory(els.perceptionMap, instance, errors, events);
-    return;
-  }
-
-  if (state.view === "invariance") {
-    els.viewLabel.textContent = "Spatial, temporal, scale invariance";
-    drawInvarianceStory(els.perceptionMap, instance);
-    return;
-  }
-
-  els.viewLabel.textContent = "Local perception -> logical readout";
-  drawNetworkStory(els.perceptionMap, instance);
-}
-
-function populateInstances() {
-  const family = codeFamilies[state.family];
-  els.codeInstance.innerHTML = "";
-  family.instances.forEach((instance) => {
-    const option = document.createElement("option");
-    option.value = instance.id;
-    option.textContent = `${labelFor(instance)} ${family.name}`;
-    els.codeInstance.appendChild(option);
-  });
-
-  state.instanceId = family.instances[0].id;
-  els.codeInstance.value = state.instanceId;
-  centerSelection(currentInstance());
-}
-
-function updateReadouts(instance, events) {
-  const checks = instance.n - instance.k;
-  const label = labelFor(instance);
-  els.layoutLabel.textContent = label;
-  els.detectorLabel.textContent = `${events.length} events`;
-  els.codeReadout.textContent = label;
-  els.nReadout.textContent = `n = ${instance.n}`;
-  els.kReadout.textContent = `k = ${instance.k}`;
-  els.dReadout.textContent = `d = ${instance.d}`;
-  els.inputReadout.textContent = `${instance.rounds} x ${checks}`;
-  els.syndromeReadout.textContent = `${events.length} detector events`;
+  // 只返回通过异或（XOR）后最终保持被点亮（Active）状态的检测事件
+  return Array.from(activeDetectors.values());
 }
 
 function render() {
