@@ -135,8 +135,8 @@
         </article>
 
         <div class="section-heading compact-heading" style="border-top: 1px solid var(--line); padding-top: 64px;">
-          <!-- <p class="eyebrow">Interactive Companion</p> -->
-          <h2>Illustration of scale invariance</h2>
+          <p class="eyebrow">Interactive Companion</p>
+          <h2>See the structural invariance in action.</h2>
           <p style="text-align: justify; max-width: 920px;">
             Before diving into the performance metrics, use this live sandbox to explore how physical error motifs map to localized detector events. Select a code family, sample a local error configuration, and alter the code distance <code>d</code> to observe how the fundamental local perception topology remains rigidly preserved across expanding scales.
           </p>
@@ -154,43 +154,34 @@
 
             <label>
               Code instance (Scale <code>d</code>)
-              <select id="code-instance">
-                </select>
+              <select id="code-instance"></select>
             </label>
 
-            <fieldset>
-              <legend>Visualization mode</legend>
-              <div class="segmented" role="group" aria-label="Visualization mode">
-                <button class="seg active" type="button" data-view="syndrome">Syndrome Map</button>
-                <button class="seg" type="button" data-view="motif">Perception Motif</button>
-              </div>
-            </fieldset>
-
             <label>
-              Local motif complexity
+              Local motif complexity (1-4 errors)
               <input id="error-slider" type="range" min="1" max="4" step="1" value="2" />
             </label>
 
             <div class="control-actions">
               <button id="resample-btn" class="button small" type="button">Sample error pattern</button>
-              <button id="freeze-btn" class="button small muted" type="button" data-state="anchored">Anchor pattern</button>
             </div>
 
-            <div class="legend">
-              <span><i class="legend-dot data"></i> data qubit</span>
-              <span><i class="legend-dot error"></i> physical error (X/Z)</span>
-              <span><i class="legend-dot detector"></i> detector event</span>
-              <span><i class="legend-dot motif"></i> invariant backbone footprint</span>
+            <div class="legend" style="margin-top: 24px; display: flex; flex-direction: column; gap: 8px;">
+              <span><i class="legend-dot data"></i> Data Qubit</span>
+              <span><i class="legend-dot check-x"></i> X-Stabilizer (Measure Z)</span>
+              <span><i class="legend-dot check-z"></i> Z-Stabilizer (Measure X)</span>
+              <span><i class="legend-dot error" style="border-radius: 2px;"></i> Physical Error (X/Z)</span>
+              <span><i class="legend-dot event" style="box-shadow: 0 0 8px red;"></i> Activated Detector</span>
             </div>
           </div>
 
           <div class="lab-visuals" style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px;">
-            <div class="lattice-card">
-              <div class="panel-title">
-                <span>Spacetime Syndrome Lattice</span>
-                <strong id="layout-label">[[49,1,7]] Target</strong>
+            <div class="lattice-card" style="background: #fdfdfd; border: 1px solid var(--line); border-radius: 12px; overflow: hidden;">
+              <div class="panel-title" style="background: var(--soft); padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between;">
+                <span style="font-weight: 500;">Spacetime Syndrome Lattice</span>
+                <strong id="layout-label" style="color: var(--teal);">[[49,1,7]] Target</strong>
               </div>
-              <svg id="code-lattice" viewBox="0 0 1040 420" role="img" aria-label="Spacetime QEC lattice visualization"></svg>
+              <svg id="code-lattice" viewBox="0 0 800 500" role="img" aria-label="Spacetime QEC lattice visualization" style="width: 100%; height: auto; display: block;"></svg>
             </div>
           </div>
 
@@ -212,8 +203,8 @@
               <strong id="d-readout">d = 7</strong>
             </div>
             <div>
-              <span>Local Motif Status</span>
-              <strong id="syndrome-readout">Strictly Isomorphic</strong>
+              <span>Syndrome Event Count</span>
+              <strong id="syndrome-readout">0</strong>
             </div>
           </div>
         </div>
