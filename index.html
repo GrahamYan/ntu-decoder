@@ -88,9 +88,9 @@
       <section id="introduction" class="section narrative-section">
         <div class="section-heading" style="margin-bottom: 54px;">
           <p class="eyebrow">The QEC code and neural decoding</p>
-          <h2>Scale invariance and network transfer.</h2>
+          <h2>Scale invariance and network transfer</h2>
           <p>
-            Fault-tolerant quantum computing relies on protecting logical information (<code>k</code> qubits) by redundantly encoding it across a lattice of noisy physical data qubits (<code>n</code>). 
+            Fault-tolerant quantum computing relies on protecting logical information (<code>k</code> logical qubits) by redundantly encoding it across a lattice of noisy physical data qubits (<code>n</code>). 
             The protective capability of the system is governed by the code distance (<code>d</code>), where larger distances exponentially suppress logical error rates.
           </p>
           <p>
@@ -252,13 +252,9 @@
             <p class="eyebrow">Surface code</p>
             <h3>Transfer scales the NTU-Transformer across distance.</h3>
             <p>
-              Figure 2a compares logical error rate across physical error rates,
-              showing that the neural decoder remains competitive where matching
-              baselines are strained by correlated, degenerate detector events.
-              Figure 2b breaks down accuracy by detector-error count, and Figure
-              2c isolates the training effect: transfer initialization avoids the
-              cold-start plateau seen when large-distance models are trained from
-              scratch.
+              Under a circuit-level depolarizing noise model at <code>p = 0.003</code>, our decoder delivers performance fully comparable to the SOTA correlated PyMatching baseline (Figure a). 
+              When breaking down accuracy by detector-error count, its advantage becomes even more pronounced in high-weight regimes (Figure b). 
+              Most importantly, while training large-distance models from scratch is extremely difficult due to severe cold-start plateaus, the NTU paradigm completely shatters this scaling bottleneck (Figure c)—enabling our high-capacity Transformer model exceeding 30 million parameters to achieve immediate vertical convergence upon initialization.
             </p>
           </div>
           <figure class="result-card">
