@@ -137,8 +137,8 @@
         <div class="section-heading compact-heading" style="border-top: 1px solid var(--line); padding-top: 64px;">
           <p class="eyebrow">Interactive Companion</p>
           <h2>See the structural invariance in action.</h2>
-          <p>
-            Before diving into the performance metrics, use this sandbox to intuitively explore how physical errors map to detector events across different code distances, and observe how the fundamental local perception motif remains rigidly preserved.
+          <p style="text-align: justify; max-width: 920px;">
+            Before diving into the performance metrics, use this live sandbox to explore how physical error motifs map to localized detector events. Select a code family, sample a local error configuration, and alter the code distance <code>d</code> to observe how the fundamental local perception topology remains rigidly preserved across expanding scales.
           </p>
         </div>
 
@@ -147,91 +147,73 @@
             <fieldset>
               <legend>Code family</legend>
               <div class="segmented" role="group" aria-label="Code family">
-                <button class="seg active" type="button" data-family="surface">Surface</button>
-                <button class="seg" type="button" data-family="bb">BB</button>
+                <button class="seg active" type="button" data-family="surface">Surface Code</button>
+                <button class="seg" type="button" data-family="bb">BB (qLDPC)</button>
               </div>
             </fieldset>
 
             <label>
-              Code instance
-              <select id="code-instance"></select>
+              Code instance (Scale <code>d</code>)
+              <select id="code-instance">
+                </select>
             </label>
 
             <fieldset>
-              <legend>View</legend>
-              <div class="segmented three" role="group" aria-label="Visualization mode">
-                <button class="seg active" type="button" data-view="syndrome">Errors</button>
-                <button class="seg" type="button" data-view="invariance">Invariance</button>
-                <button class="seg" type="button" data-view="network">Network</button>
+              <legend>Visualization mode</legend>
+              <div class="segmented" role="group" aria-label="Visualization mode">
+                <button class="seg active" type="button" data-view="syndrome">Syndrome Map</button>
+                <button class="seg" type="button" data-view="motif">Perception Motif</button>
               </div>
             </fieldset>
 
             <label>
-              Data-qubit errors
-              <input id="error-slider" type="range" min="1" max="8" step="1" value="3" />
+              Local motif complexity
+              <input id="error-slider" type="range" min="1" max="4" step="1" value="2" />
             </label>
 
             <div class="control-actions">
-              <button id="resample-btn" class="button small" type="button">Sample error</button>
-              <button id="center-btn" class="button small muted" type="button">Center motif</button>
+              <button id="resample-btn" class="button small" type="button">Sample error pattern</button>
+              <button id="freeze-btn" class="button small muted" type="button" data-state="anchored">Anchor pattern</button>
             </div>
 
             <div class="legend">
               <span><i class="legend-dot data"></i> data qubit</span>
-              <span><i class="legend-dot error"></i> physical error</span>
+              <span><i class="legend-dot error"></i> physical error (X/Z)</span>
               <span><i class="legend-dot detector"></i> detector event</span>
-              <span><i class="legend-dot motif"></i> local perception</span>
+              <span><i class="legend-dot motif"></i> invariant backbone footprint</span>
             </div>
           </div>
 
-          <div class="lab-visuals">
+          <div class="lab-visuals" style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px;">
             <div class="lattice-card">
               <div class="panel-title">
-                <span>Code layout</span>
-                <strong id="layout-label">[[49,1,7]]</strong>
+                <span>Spacetime Syndrome Lattice</span>
+                <strong id="layout-label">[[49,1,7]] Target</strong>
               </div>
-              <svg id="code-lattice" viewBox="0 0 520 360" role="img" aria-label="Data-qubit layout"></svg>
-            </div>
-            <div class="lattice-card">
-              <div class="panel-title">
-                <span>Detector events</span>
-                <strong id="detector-label">0 events</strong>
-              </div>
-              <svg id="detector-lattice" viewBox="0 0 520 360" role="img" aria-label="Detector event layout"></svg>
-            </div>
-            <div class="chart-card perception-card">
-              <div class="panel-title">
-                <span>Mechanism Intuition</span>
-                <strong id="view-label">Errors -> detectors</strong>
-              </div>
-              <svg id="perception-map" viewBox="0 0 1040 330" role="img" aria-label="QEC invariance and neural perception illustration"></svg>
+              <svg id="code-lattice" viewBox="0 0 1040 420" role="img" aria-label="Spacetime QEC lattice visualization"></svg>
             </div>
           </div>
 
-          <div class="readout-grid qec-readout" style="margin-top: 16px;">
+          <div class="readout-grid qec-readout" style="margin-top: 20px;">
             <div>
-              <span>Code</span>
+              <span>Code Spec</span>
               <strong id="code-readout">[[49,1,7]]</strong>
             </div>
             <div>
-              <span>Data qubits</span>
+              <span>Physical Qubits</span>
               <strong id="n-readout">n = 49</strong>
             </div>
             <div>
-              <span>Logical qubits</span>
+              <span>Logical Qubits</span>
               <strong id="k-readout">k = 1</strong>
             </div>
             <div>
-              <span>Distance</span>
+              <span>Code Distance</span>
               <strong id="d-readout">d = 7</strong>
             </div>
             <div>
-              <span>Decoder input</span>
-              <strong id="input-readout">7 x 48</strong>
-            </div>
-            <div>
-              <span>Current syndrome</span>
-              <strong id="syndrome-readout">0 detector events</strong>
+              <span>Local Motif Status</span>
+              <strong id="syndrome-readout">Strictly Isomorphic</strong>
             </div>
           </div>
         </div>
