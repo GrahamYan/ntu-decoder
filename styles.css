@@ -286,7 +286,8 @@ h3 {
 }
 
 .section-heading {
-  max-width: 820px;
+  /* max-width: 820px; */
+  max-width: 100%;
   margin-bottom: 28px;
 }
 
@@ -297,6 +298,7 @@ h3 {
 .section-heading p:not(.eyebrow) {
   color: var(--muted);
   font-size: 1.02rem;
+  text-align: justify;
 }
 
 .narrative-section {
@@ -327,6 +329,7 @@ h3 {
 .prose {
   color: #344248;
   font-size: 1.02rem;
+  text-align: justify;
 }
 
 .prose p {
