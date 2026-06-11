@@ -368,37 +368,46 @@
             </div>
           </article>
 
+          
+
           <article class="method-card physical-method">
             <div class="method-card-header">
-              <p class="eyebrow">Physical-error prediction</p>
-              <h3>GNN-based neural-BP</h3>
-              <p>
-                The graph route keeps the belief-propagation inductive bias but
-                makes the aggregation learnable. It predicts physical error
-                probabilities on data qubits instead of directly predicting the
-                logical vector.
+              <p class="eyebrow">Physical error inference</p>
+              <h3>NTU-Neural-BP</h3>
+              <p style="text-align: justify;">
+                NTU-Neural-BP instantiates the framework using a parameterized graph neural network (GNN) tailored for localized physical error inference. 
+                Operating directly over the intrinsic bipartite Tanner graph of the QEC code, this paradigm replaces standard classical belief propagation (BP) approximations with learnable, non-linear message passing. 
+                By capturing highly localized correlations, NTU-Neural-BP actively dampens the severe message oscillations and convergence failures traditionally triggered by degenerate short loops within the hypergraph, 
+                directly outputting physical fault probabilities across individual data qubits.
               </p>
             </div>
 
-            <div class="tanner-panel" aria-label="Tanner graph message passing">
-              <div class="tanner-node check-node">checks</div>
-              <div class="tanner-edges"></div>
-              <div class="tanner-node variable-node">data qubits</div>
+            <div class="io-strip" aria-label="NeuralBP input and output">
+              <div>
+                <span>Input</span>
+                <strong>{0,1}<sup>d x m<sub>d</sub></sup></strong>
+                <small><code>m<sub>d</sub></code> detectors per round</small>
+              </div>
+              <div>
+                <span>Output</span>
+                <strong>[0,1]<sup>n</sup></strong>
+                <small>physical error probabilities</small>
+              </div>
             </div>
 
             <div class="method-detail-grid">
               <div>
-                <h4>Tanner graph</h4>
+                <h4>Number of iteration</h4>
                 <p>
-                  Variable nodes represent data qubits, check nodes represent
-                  stabilizer constraints, and edges encode the parity-check matrix.
+                  To ensure optimization stability, we employ an iterative depth curriculum that dynamically expands the unrolling depth up to <code>N<sub>iter</sub> = 2d</code> rounds of message passing. 
+                  This structured curriculum enables the network to master localized error tracking in the early stages before progressively learning complex, long-range loop neutralizations across the expanded boundaries.                
                 </p>
               </div>
               <div>
                 <h4>Message passing</h4>
                 <p>
-                  The GNN alternates variable-to-check and check-to-variable
-                  updates, mirroring BP while allowing learned nonlinear updates.
+                  The GNN backbone strictly mirrors the code's topology, alternating non-linear check-to-variable and variable-to-check updates via parameterized aggregation. 
+                  Because these parametric calculations are confined to local neighborhoods, the trained weights are strictly invariant to the global graph size—enabling seamless transfer across distance updates without coordinate engineering or structural modifications.
                 </p>
               </div>
               <div>
