@@ -89,11 +89,15 @@
         <div class="section-heading" style="margin-bottom: 54px;">
           <p class="eyebrow">The QEC code and neural decoding</p>
           <h2>Scale invariance and network transfer.</h2>
-          <p>Fault-tolerant quantum computing relies on protecting logical information ($k$ qubits) by redundantly encoding it across a lattice of noisy physical data qubits ($n$). 
-            The protective capability of the system is governed by the code distance ($d$), where larger distances exponentially suppress logical error rates.</p>
-          <p>In practical operations, microscopic physical faults on data qubits cannot be observed directly. Instead, consecutive rounds of stabilizer measurements are executed over time, triggering a sparse sequence of binary detector events. 
+          <p>
+            Fault-tolerant quantum computing relies on protecting logical information (<code>k</code> qubits) by redundantly encoding it across a lattice of noisy physical data qubits (<code>n</code>). 
+            The protective capability of the system is governed by the code distance (<code>d</code>), where larger distances exponentially suppress logical error rates.
+          </p>
+          <p>
+            In practical operations, microscopic physical faults on data qubits cannot be observed directly. Instead, consecutive rounds of stabilizer measurements are executed over time, triggering a sparse sequence of binary detector events. 
             The locations of these events in the spacetime lattice are called detectors. 
-            The fundamental task of a neural decoder is to process these detector events and accurately infer either the collective logical status or the precise configuration of underlying physical errors.</p>
+            The fundamental task of a neural decoder is to process these detector events and accurately infer either the collective logical status or the precise configuration of underlying physical errors.
+          </p>
         </div>
 
         <article class="split-section" style="display: grid; grid-template-columns: minmax(0, 0.4fr) minmax(0, 1.6fr); align-items: center; margin-bottom: 72px;">
