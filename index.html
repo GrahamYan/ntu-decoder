@@ -85,119 +85,56 @@
         </aside> -->
       </section>
 
-      <section id="introduction" class="section narrative-section compact-section">
+      <section id="introduction" class="section narrative-section">
         <div class="section-heading">
-          <p class="eyebrow">Introduction to neural decoding</p>
-          <h2>From QEC code structure to neural decoder structure.</h2>
+          <p class="eyebrow">The Scaling Bottleneck & Our Approach</p>
+          <h2>Overcoming the exponential training wall in QEC.</h2>
+        </div>
+        
+        <div class="prose" style="max-width: 920px; margin-bottom: 42px;">
           <p>
-            A quantum error-correcting code stores <code>k</code> logical qubits in
-            <code>n</code> noisy data qubits. The code distance <code>d</code>
-            measures how many physical faults are needed to create an undetected
-            logical error. A decoder receives detector events from repeated
-            syndrome measurements and must infer either physical corrections or
-            logical status.
+            Fault-tolerant quantum computing relies on protecting logical information (<code>k</code> qubits) across a lattice of physical data qubits (<code>n</code>). While increasing the code distance (<code>d</code>) exponentially suppresses logical errors, it also creates an exponential computational wall for neural decoders. Traditionally, scaling up means the entire network architecture is rigidly tied to the specific dimensions of the code, requiring massive models to be retrained entirely from scratch for every new lattice size.
+          </p>
+          <p>
+            To break this barrier, NTU shifts the paradigm. Instead of learning distance-specific global mappings, we exploit the <strong>structural isomorphism</strong> inherent in scalable quantum codes. Whether operating on planar surface codes or non-local bivariate bicycle (BB) codes, the fundamental local syndrome generation rules remain rigidly invariant as the global boundaries expand.
           </p>
         </div>
 
-        <div class="concept-grid tight-grid">
-          <article>
-            <span class="step-index">n</span>
-            <h3>Data qubits</h3>
-            <p>Physical qubits carrying the encoded state and producing noisy syndrome evidence.</p>
-          </article>
-          <article>
-            <span class="step-index">k</span>
-            <h3>Logical qubits</h3>
-            <p>Protected degrees of freedom. Surface-code memory uses <code>k = 1</code>; BB examples use <code>k = 12</code>.</p>
-          </article>
-          <article>
-            <span class="step-index">d</span>
-            <h3>Code distance</h3>
-            <p>The scaling parameter that expands the syndrome volume and raises the decoding difficulty.</p>
-          </article>
-        </div>
-
-        <div class="intro-compact-grid">
-          <article class="dense-card">
-            <h3>Surface and BB codes</h3>
-            <p>
-              The rotated surface code has a visible planar stabilizer pattern,
-              while bivariate bicycle codes use compact cyclic polynomial
-              neighborhoods in a quantum LDPC Tanner graph. Both families preserve
-              reusable local motifs as the code grows.
-            </p>
-          </article>
-          <article class="dense-card">
-            <h3>Two neural decoder targets</h3>
-            <p>
-              A model can predict physical errors on data qubits and then correct
-              them, or directly predict the logical error vector. NTU uses both
-              views: graph-based neural-BP for physical-error inference and
-              NTU-Transformer for logical-error prediction.
-            </p>
-          </article>
-        </div>
-
-        <div class="figure1-grid">
-          <article class="figure1-card">
-            <figure>
-              <img src="assets/figure-1a.png" alt="Figure 1a: spatial, temporal, and scale invariance in QEC codes" />
+        <div class="intro-compact-grid" style="margin-bottom: 64px;">
+          <article class="dense-card" style="padding: 12px; display: flex; flex-direction: column; gap: 14px;">
+            <figure style="margin: 0; border-radius: 6px; overflow: hidden; background: var(--soft);">
+              <img src="assets/figure-1a.png" alt="Topological invariance in QEC codes" style="width: 100%; display: block;" />
             </figure>
-            <div>
-              <p class="eyebrow">Figure 1a</p>
-              <h3>Invariance in the code</h3>
-              <p>
-                Spatial shifts, repeated syndrome rounds, and larger code
-                distances preserve the same local detector motif:
-                <code>N(v) = v M(x,y,t)</code>.
+            <div style="padding: 4px;">
+              <h3 style="margin-bottom: 8px; font-size: 1.1rem;">Topological Invariance</h3>
+              <p style="margin: 0; color: var(--muted); font-size: 0.96rem;">
+                The fundamental motifs of both planar and quasi-cyclic codes exhibit strict structural isomorphism. This local neighborhood connectivity remains universally invariant across spatial translations, temporal rounds, and scale expansions.
               </p>
             </div>
           </article>
 
-          <article class="figure1-card">
-            <figure>
-              <img src="assets/figure-1b.png" alt="Figure 1b: local perception, global decision, and message passing" />
+          <article class="dense-card" style="padding: 12px; display: flex; flex-direction: column; gap: 14px;">
+            <figure style="margin: 0; border-radius: 6px; overflow: hidden; background: var(--soft);">
+              <img src="assets/figure-1b.png" alt="Decoupled Neural Architecture" style="width: 100%; display: block;" />
             </figure>
-            <div>
-              <p class="eyebrow">Figure 1b</p>
-              <h3>Mapping code locality to networks</h3>
-              <p>
-                Local perception is transferable across distances, while global
-                decisions need target-size adaptation. For Tanner-graph decoding,
-                message passing preserves the physical-error inference structure.
-              </p>
-            </div>
-          </article>
-
-          <article class="figure1-card">
-            <figure>
-              <img src="assets/figure-1c.png" alt="Figure 1c: training compute scaling for scratch and NTU" />
-            </figure>
-            <div>
-              <p class="eyebrow">Figure 1c</p>
-              <h3>Why transfer matters</h3>
-              <p>
-                Training from scratch scales steeply with distance. NTU reduces
-                the scaling pressure by reusing local representations and
-                fine-tuning the target-specific readout.
+            <div style="padding: 4px;">
+              <h3 style="margin-bottom: 8px; font-size: 1.1rem;">Decoupled Neural Architecture</h3>
+              <p style="margin: 0; color: var(--muted); font-size: 0.96rem;">
+                By explicitly decoupling the scale-invariant local perception backbone from the scale-dependent global decision layer, NTU allows learned error representations to transfer seamlessly to larger lattices without representation collapse.
               </p>
             </div>
           </article>
         </div>
-      </section>
 
-      <section id="interaction" class="section lab-section embedded-lab">
-        <div class="section-heading compact-heading">
-          <p class="eyebrow">Interactive companion</p>
-          <h2>Explore code size, error locations, detector events, and local perception.</h2>
+        <div class="section-heading compact-heading" style="border-top: 1px solid var(--line); padding-top: 54px;">
+          <p class="eyebrow">Interactive Companion</p>
+          <h2>See the structural invariance in action.</h2>
           <p>
-            This explanatory sandbox sits after the introduction because it
-            visualizes the same concepts: exact <code>[[n,k,d]]</code> code sizes,
-            physical errors, detector events, and the local motif behind Figure 1.
+            Before diving into the performance metrics, use this sandbox to intuitively explore how physical errors map to detector events across different code distances, and observe how the fundamental local perception motif remains rigidly preserved.
           </p>
         </div>
 
-        <div class="lab-shell">
+        <div class="lab-shell" style="margin-top: 24px;">
           <div class="controls" aria-label="QEC interaction controls">
             <fieldset>
               <legend>Code family</legend>
@@ -256,7 +193,7 @@
             </div>
             <div class="chart-card perception-card">
               <div class="panel-title">
-                <span>Figure 1 intuition</span>
+                <span>Mechanism Intuition</span>
                 <strong id="view-label">Errors -> detectors</strong>
               </div>
               <svg id="perception-map" viewBox="0 0 1040 330" role="img" aria-label="QEC invariance and neural perception illustration"></svg>
