@@ -294,70 +294,75 @@
       <section id="methods" class="section narrative-section compact-section">
         <div class="section-heading">
           <p class="eyebrow">Methods</p>
-          <h2>Two model families match the two decoding routes.</h2>
+          <h2>Detailed implementation of NTU-Transformer and NTU-Neural-BP.</h2>
           <p>
-            NTU-Transformer directly predicts logical errors, while GNN-based
-            neural-BP predicts physical errors on the Tanner graph.
+            The Neural Transfer Unification (NTU) framework formalizes foundation-decoder construction as an architecture-agnostic transfer learning pipeline.
+            It bridges varying code distances through four systematized phases: spatiotemporal invariance discovery, distance-independent syndrome encoding, neural representation learning, and targeted domain adaptation. 
+            By shifting the optimization focus from global distance-specific boundaries to localized topological invariants, NTU successfully eliminates curriculum optimization traps and yields scalable decoding precision.
           </p>
         </div>
 
         <div class="methods-grid">
           <article class="method-card logical-method">
             <div class="method-card-header">
-              <p class="eyebrow">Logical-error prediction</p>
+              <p class="eyebrow">Logical error classification</p>
               <h3>NTU-Transformer</h3>
-              <p>
-                The Transformer route treats decoding as direct logical
-                classification. It receives the binary detector history from
-                <code>d</code> syndrome rounds and predicts the logical error
-                probability for each encoded qubit.
+              <p style="text-align: justify;">
+                NTU-Transformer implements a recurrent-Transformer hybrid architecture designed for scalable logical error classification.
+                To resolve the severe dimensional mismatch where the syndrome input inflates polynomially while the logical output dimension <code>k</code> remains fixed, 
+                the network explicitly decouples into a scale-invariant spatiotemporal perception backbone and a global cross-attention readout.
+                This structural decomposition enables the heavy feature-extraction weights to be flawlessly transferred across different scales without representation collapse.
               </p>
             </div>
 
             <div class="io-strip" aria-label="Transformer input and output">
               <div>
                 <span>Input</span>
-                <strong>{0,1}<sup>d x m</sup></strong>
-                <small><code>m</code> detectors per round</small>
+                <strong>{0,1}<sup>d x m<sub>d</sub></sup></strong>
+                <small><code>m<sub>d</sub></code> detectors per round</small>
               </div>
               <div>
                 <span>Output</span>
                 <strong>[0,1]<sup>k</sup></strong>
-                <small>logical-error probabilities</small>
+                <small>logical error probabilities</small>
               </div>
             </div>
 
             <div class="method-flow">
               <div class="flow-step">
                 <span>01</span>
-                <h4>Stem</h4>
+                <h4>STEM</h4>
                 <p>
-                  Embed detector events with local code geometry, detector type,
-                  and neighborhood roles so tokens already carry QEC structure.
+                  Raw sparse binary syndromes are mapped into a continuous latent space via discrete topological lookup tables.
+                  For both geometric surface codes and algebraic qLDPC geometries, the embedding vocabulary is strictly derived from local Tanner graph connectivity complexes and generator intersection matrices. 
+                  This guarantees that each embedded token implicitly encapsulates distance-invariant physical neighborhood structures before spatial feature propagation.
                 </p>
               </div>
               <div class="flow-step">
                 <span>02</span>
-                <h4>Spatial transformer</h4>
+                <h4>RoPE</h4>
                 <p>
-                  Within each syndrome round, self-attention mixes spatially
-                  related detector features and preserves the local motif.
+                  To achieve exact structural isomorphism across expanding scales, we implement a geometry-aware RoPE parameterized by unnormalized polynomial-induced matrix coordinates. 
+                  By explicitly avoiding boundary-dependent normalization, relative coordinate displacements remain rigidly identical regardless of the target distance <code>d</code>. 
+                  The pre-learned high-frequency spectral phase mappings are preserved perfectly across distance updates, isolating fine-tuning to minor boundary boundary adjustments.
                 </p>
               </div>
               <div class="flow-step">
                 <span>03</span>
-                <h4>Temporal recurrent path</h4>
+                <h4>GRU</h4>
                 <p>
-                  Along the <code>t</code> axis, recurrent updates track
-                  measurement noise and error chains that persist across rounds.
+                  Temporal fault tolerance across expanding measurement rounds (<code>r = d</code>) is resolved by interleaving Gated Recurrent Units to model noise propagation. 
+                  To shatter the optimization plateaus caused by long recurrent paths and label sparsity, we apply continuous step-by-step process supervision. 
+                  The backbone is bootstrapped using intermediate pseudo-labels dynamically distilled from a classical heuristic teacher, which is gradually annealed to let the network transcend the classical baseline.
                 </p>
               </div>
               <div class="flow-step">
                 <span>04</span>
                 <h4>Cross-attention readout</h4>
                 <p>
-                  Learned logical tokens query the spatiotemporal representation
-                  and produce the final <code>k</code>-dimensional readout.
+                  The final <code>k</code>-dimensional logical predictions are resolved via a geometry-aware cross-attention pooling mechanism. 
+                  Dedicated learnable logical query tokens query the final spatiotemporal stabilizer representations to aggregate distributed global parity evidence. 
+                  This structure matches the specific macroscopic operations of the target code family, capturing non-local error correlations linked to the data-qubit support sets.
                 </p>
               </div>
             </div>
