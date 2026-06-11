@@ -317,49 +317,75 @@ function drawSurface(svg, instance, errors, activeEvents) {
   });
 }
 
-function bbPosition(instance, step, offsetX, offsetY, item) {
-  const x = offsetX + item.col * step;
-  const y = offsetY + item.row * step;
+function bbPointIndex(item) {
   if (item.kind === "data") {
-    return {
-      x: x + step * (item.block === "L" ? 0.28 : 0.72),
-      y: y + step * 0.28,
-    };
+    return item.block === "L"
+      ? { row: 2 * item.row, col: 2 * item.col + 1 }
+      : { row: 2 * item.row + 1, col: 2 * item.col };
   }
+
+  return item.type === "X"
+    ? { row: 2 * item.row + 1, col: 2 * item.col + 1 }
+    : { row: 2 * item.row, col: 2 * item.col };
+}
+
+function bbPosition(step, offsetX, offsetY, item) {
+  const point = bbPointIndex(item);
   return {
-    x: x + step * (item.type === "X" ? 0.28 : 0.72),
-    y: y + step * 0.72,
+    x: offsetX + point.col * step,
+    y: offsetY + point.row * step,
   };
 }
 
-function shortestDelta(rawDelta, period) {
-  if (rawDelta > period / 2) return rawDelta - period;
-  if (rawDelta < -period / 2) return rawDelta + period;
-  return rawDelta;
+function drawBBBoundaryArrows(svg, left, top, width, height) {
+  const defs = makeSvg("defs");
+  const marker = makeSvg("marker", {
+    id: "bb-arrow-head",
+    viewBox: "0 0 10 10",
+    refX: "8",
+    refY: "5",
+    markerWidth: "6",
+    markerHeight: "6",
+    orient: "auto-start-reverse",
+  });
+  marker.appendChild(makeSvg("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "bb-arrow-head" }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  [
+    `M ${left + width * 0.70} ${top - 15} L ${left + width * 0.36} ${top - 15}`,
+    `M ${left + width * 0.28} ${top + height + 15} L ${left + width * 0.62} ${top + height + 15}`,
+    `M ${left - 15} ${top + height * 0.30} L ${left - 15} ${top + height * 0.68}`,
+    `M ${left + width + 15} ${top + height * 0.70} L ${left + width + 15} ${top + height * 0.34}`,
+  ].forEach((d) => {
+    svg.appendChild(makeSvg("path", {
+      d,
+      class: "bb-boundary-arrow",
+      "marker-end": "url(#bb-arrow-head)",
+    }));
+  });
 }
 
 function drawTorusEdge(svg, instance, step, offsetX, offsetY, connection) {
-  const source = bbPosition(instance, step, offsetX, offsetY, {
+  const source = bbPosition(step, offsetX, offsetY, {
     kind: "data",
     row: connection.source.row,
     col: connection.source.col,
     block: connection.source.block,
   });
-  const target = bbPosition(instance, step, offsetX, offsetY, {
+  const target = bbPosition(step, offsetX, offsetY, {
     kind: "check",
     row: connection.target.row,
     col: connection.target.col,
     type: connection.target.type,
   });
-  const gridW = instance.cols * step;
-  const gridH = instance.rows * step;
-  const dx = shortestDelta(target.x - source.x, gridW);
-  const dy = shortestDelta(target.y - source.y, gridH);
-  const endX = source.x + dx;
-  const endY = source.y + dy;
-  const midX = source.x + dx * 0.5;
-  const midY = source.y + dy * 0.5 - Math.min(24, step * 0.32);
-  const path = `M ${source.x.toFixed(1)} ${source.y.toFixed(1)} Q ${midX.toFixed(1)} ${midY.toFixed(1)} ${endX.toFixed(1)} ${endY.toFixed(1)}`;
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const bend = (connection.layer === "A" ? -1 : 1) * Math.min(34, 10 + length * 0.05);
+  const midX = (source.x + target.x) / 2 - (dy / length) * bend;
+  const midY = (source.y + target.y) / 2 + (dx / length) * bend;
+  const path = `M ${source.x.toFixed(1)} ${source.y.toFixed(1)} Q ${midX.toFixed(1)} ${midY.toFixed(1)} ${target.x.toFixed(1)} ${target.y.toFixed(1)}`;
 
   svg.appendChild(makeSvg("path", {
     d: path,
@@ -374,40 +400,28 @@ function drawTorusEdge(svg, instance, step, offsetX, offsetY, connection) {
 function drawBB(svg, instance, errors, activeEvents) {
   const width = 800;
   const height = 500;
-  const step = Math.min((width - 150) / instance.cols, (height - 120) / instance.rows);
-  const offsetX = (width - step * instance.cols) / 2;
-  const offsetY = (height - step * instance.rows) / 2;
+  const latticeRows = instance.rows * 2;
+  const latticeCols = instance.cols * 2;
+  const step = Math.min((width - 180) / Math.max(1, latticeCols - 1), (height - 150) / Math.max(1, latticeRows - 1));
+  const offsetX = (width - step * (latticeCols - 1)) / 2;
+  const offsetY = (height - step * (latticeRows - 1)) / 2 + 2;
+  const frameX = offsetX - step * 0.5;
+  const frameY = offsetY - step * 0.5;
+  const frameW = step * latticeCols;
+  const frameH = step * latticeRows;
   const eventSet = new Set(activeEvents);
   const errorSet = new Map(errors.map((error) => [`${error.block}_${error.row}_${error.col}`, error]));
   const connections = errors.flatMap((error) => bbConnectionsForError(instance, error));
 
   svg.appendChild(makeSvg("rect", {
-    x: offsetX,
-    y: offsetY,
-    width: step * instance.cols,
-    height: step * instance.rows,
-    rx: 10,
+    x: frameX,
+    y: frameY,
+    width: frameW,
+    height: frameH,
+    rx: 0,
     class: "bb-torus-frame",
   }));
-
-  for (let row = 0; row <= instance.rows; row += 1) {
-    svg.appendChild(makeSvg("line", {
-      x1: offsetX,
-      y1: offsetY + row * step,
-      x2: offsetX + instance.cols * step,
-      y2: offsetY + row * step,
-      class: "qec-grid-line",
-    }));
-  }
-  for (let col = 0; col <= instance.cols; col += 1) {
-    svg.appendChild(makeSvg("line", {
-      x1: offsetX + col * step,
-      y1: offsetY,
-      x2: offsetX + col * step,
-      y2: offsetY + instance.rows * step,
-      class: "qec-grid-line",
-    }));
-  }
+  drawBBBoundaryArrows(svg, frameX, frameY, frameW, frameH);
 
   connections.forEach((connection) => drawTorusEdge(svg, instance, step, offsetX, offsetY, connection));
 
@@ -415,11 +429,11 @@ function drawBB(svg, instance, errors, activeEvents) {
     for (let col = 0; col < instance.cols; col += 1) {
       ["L", "R"].forEach((block) => {
         const error = errorSet.get(`${block}_${row}_${col}`);
-        const pos = bbPosition(instance, step, offsetX, offsetY, { kind: "data", row, col, block });
+        const pos = bbPosition(step, offsetX, offsetY, { kind: "data", row, col, block });
         svg.appendChild(makeSvg("circle", {
           cx: pos.x,
           cy: pos.y,
-          r: error ? step * 0.17 : step * 0.095,
+          r: error ? step * 0.28 : step * 0.145,
           class: ["qec-data", "bb-data", block === "L" ? "left-register" : "right-register", error ? "error" : ""].filter(Boolean).join(" "),
         }));
         if (error) {
@@ -434,25 +448,23 @@ function drawBB(svg, instance, errors, activeEvents) {
       });
 
       ["X", "Z"].forEach((type) => {
-        const pos = bbPosition(instance, step, offsetX, offsetY, { kind: "check", row, col, type });
+        const pos = bbPosition(step, offsetX, offsetY, { kind: "check", row, col, type });
         const active = eventSet.has(`bb_${type}_${row}_${col}`);
         svg.appendChild(makeSvg("circle", {
           cx: pos.x,
           cy: pos.y,
-          r: active ? step * 0.15 : step * 0.095,
-          class: ["qec-check", type === "X" ? "x-check" : "z-check", active ? "active" : ""].filter(Boolean).join(" "),
+          r: active ? step * 0.28 : step * 0.145,
+          class: ["qec-check", "bb-check", type === "X" ? "x-check" : "z-check", active ? "active" : ""].filter(Boolean).join(" "),
         }));
       });
     }
   }
 
-  drawText(svg, "BB toric layout: periodic boundary; solid/dashed edges are A/B cyclic shifts", {
+  drawText(svg, "BB code: data and checks interleave on one periodic lattice; curves show cyclic shifts", {
     x: 24,
     y: 470,
     class: "qec-svg-caption",
   });
-  drawText(svg, "q(L)", { x: offsetX, y: offsetY - 14, class: "bb-register-label" });
-  drawText(svg, "q(R)", { x: offsetX + 54, y: offsetY - 14, class: "bb-register-label muted" });
 }
 
 function drawLattice(svg, instance, errors, activeEvents) {

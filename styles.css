@@ -1542,7 +1542,7 @@ svg {
 }
 
 .qec-data.bb-data.right-register {
-  fill: #f6c453;
+  fill: #fbbf24;
 }
 
 .qec-data.error {
@@ -1570,6 +1570,12 @@ svg {
   stroke-width: 2.4;
 }
 
+.qec-check.bb-check {
+  fill: #fff;
+  opacity: 1;
+  stroke-width: 2.1;
+}
+
 .qec-check.x-check.active {
   fill: #ef4444;
 }
@@ -1593,14 +1599,14 @@ svg {
 
 .bb-torus-frame {
   fill: #fff;
-  stroke: #d8e3e7;
-  stroke-width: 1.5;
+  stroke: #c4c4c4;
+  stroke-width: 1.4;
 }
 
 .bb-edge {
   fill: none;
-  stroke-width: 2.2;
-  opacity: 0.72;
+  stroke-width: 2.4;
+  opacity: 0.66;
   pointer-events: none;
 }
 
@@ -1614,17 +1620,18 @@ svg {
 }
 
 .bb-edge.wrap-edge {
-  opacity: 0.9;
+  opacity: 0.86;
+  stroke-dasharray: 7 5;
 }
 
-.bb-register-label {
-  fill: #1e293b;
-  font-size: 13px;
-  font-weight: 820;
+.bb-boundary-arrow {
+  fill: none;
+  stroke: #b8b8b8;
+  stroke-width: 1.6;
 }
 
-.bb-register-label.muted {
-  fill: var(--muted);
+.bb-arrow-head {
+  fill: #b8b8b8;
 }
 
 @media (max-width: 960px) {
