@@ -249,8 +249,8 @@
 
         <article class="result-story compact-story">
           <div class="prose">
-            <p class="eyebrow">Surface code</p>
-            <h3>Transfer scales the NTU-Transformer across distance.</h3>
+            <!-- <p class="eyebrow">Surface code</p> -->
+            <h3>Surface code</h3>
             <p>
               Under a circuit-level depolarizing noise model at <code>p = 0.003</code>, our decoder delivers performance fully comparable to the SOTA correlated PyMatching baseline (Figure a). 
               When breaking down accuracy by detector-error count, its advantage becomes even more pronounced in high-weight regimes (Figure b). 
@@ -259,34 +259,33 @@
           </div>
           <figure class="result-card">
             <img src="assets/surface-results.png" alt="Updated surface-code result panels a, b, and c" />
-            <figcaption>
+            <!-- <figcaption>
               Updated surface-code Figure 2. Panels a and c highlight decoding
               performance and transfer-versus-scratch training behavior.
               <a class="figure-link" href="surface.pdf">PDF source</a>
-            </figcaption>
+            </figcaption> -->
           </figure>
         </article>
 
         <article class="result-story flipped compact-story">
           <div class="prose">
-            <p class="eyebrow">Bivariate bicycle code</p>
-            <h3>The same principle transfers beyond planar geometry.</h3>
+            <!-- <p class="eyebrow">Bivariate bicycle code</p> -->
+            <h3>BB code</h3>
             <p>
-              Figure 3a shows strong NTU-Transformer performance on the base BB
-              code against belief-propagation-based baselines. Figure 3b evaluates
-              robustness as detector-error count increases. Figure 3c shows the
-              larger <code>[[144,12,12]]</code> target case, where transferred
-              models rapidly improve while scratch training can stagnate near
-              random guessing.
+              On the non-local [[72,12,6]] base code, NTU-Transformer achieves strong performance closely tracking advanced Relay-BP baselines, noticeably outperforming the locally-bounded NTU-NeuralBP (Figure a). 
+              Due to encoding 12 logical qubits simultaneously, training a massive [[144,12,12]] target code from scratch is exceptionally difficult, highlighting the power of the NTU paradigm (Figure c). 
+              The unique step-like accuracy jumps during Transformer fine-tuning reflect the progressive, quantized mastery of independent logical observables. 
+              Interestingly, the GNN-based NeuralBP exhibits an instantaneous "zero-step" liftoff because its localized physical error inference rules are completely invariant across graph scales. 
+              Conversely, the global NTU-Transformer requires a brief optimization window to recalibrate its expanded cross-attention readout and adapt its non-local receptive field to the newly expanded boundaries.
             </p>
           </div>
           <figure class="result-card">
             <img src="assets/bb-results.png" alt="Updated BB-code result panels a, b, and c" />
-            <figcaption>
+            <!-- <figcaption>
               Updated BB-code Figure 3. Panels a and c emphasize base-code
               performance and transfer to the larger quantum LDPC code.
               <a class="figure-link" href="BB.pdf">PDF source</a>
-            </figcaption>
+            </figcaption> -->
           </figure>
         </article>
       </section>
