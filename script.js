@@ -369,3 +369,120 @@ els.resampleBtn.addEventListener("click", () => {
 // 初始化
 populateInstances();
 updateUI();
+
+
+
+// =====================================================
+// AI Assistant Widget 逻辑
+// =====================================================
+const assistantWidget = document.querySelector(".assistant-widget");
+const assistantToggle = document.querySelector("#assistant-toggle");
+const assistantHeroButton = document.querySelector("#open-assistant-hero");
+const assistantClose = document.querySelector("#assistant-close");
+const assistantForm = document.querySelector("#assistant-form");
+const assistantInput = document.querySelector("#assistant-input");
+const assistantMessages = document.querySelector("#assistant-messages");
+const assistantStatus = document.querySelector("#assistant-status");
+const assistantEndpoint = assistantWidget?.dataset.endpoint || "";
+const assistantHistory = [];
+const assistantConfigured =
+  assistantEndpoint &&
+  !assistantEndpoint.includes("YOUR_WORKERS_SUBDOMAIN") &&
+  /^https:\/\/.+\/chat$/.test(assistantEndpoint);
+
+function setAssistantOpen(open) {
+  if (!assistantWidget) return;
+  assistantWidget.classList.toggle("open", open);
+  assistantToggle?.setAttribute("aria-expanded", String(open));
+  if (open) {
+    window.setTimeout(() => assistantInput?.focus(), 80);
+  }
+}
+
+function setAssistantStatus(text, type = "") {
+  if (!assistantStatus) return;
+  assistantStatus.textContent = text;
+  assistantStatus.className = ["assistant-status", type].filter(Boolean).join(" ");
+}
+
+function addAssistantMessage(text, role) {
+  const message = document.createElement("div");
+  message.className = `assistant-message assistant-message-${role === "user" ? "user" : "bot"}`;
+  message.textContent = text;
+  assistantMessages.appendChild(message);
+  assistantMessages.scrollTop = assistantMessages.scrollHeight;
+  return message;
+}
+
+if (assistantWidget) {
+  if (assistantConfigured) {
+    setAssistantStatus("Connected to the paper and code assistant backend.", "ready");
+  } else {
+    setAssistantStatus(
+      "Backend not connected yet. Deploy the Cloudflare Worker, then replace the endpoint in index.html.",
+      "error",
+    );
+    assistantInput.disabled = true;
+    assistantForm.querySelector("button").disabled = true;
+  }
+}
+
+assistantToggle?.addEventListener("click", () => {
+  setAssistantOpen(!assistantWidget.classList.contains("open"));
+});
+
+assistantHeroButton?.addEventListener("click", () => {
+  setAssistantOpen(true);
+});
+
+assistantClose?.addEventListener("click", () => {
+  setAssistantOpen(false);
+});
+
+assistantForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!assistantConfigured) return;
+
+  const question = assistantInput.value.trim();
+  if (!question) return;
+
+  assistantInput.value = "";
+  assistantInput.disabled = true;
+  assistantForm.querySelector("button").disabled = true;
+  addAssistantMessage(question, "user");
+  const pending = addAssistantMessage("Thinking...", "bot");
+  setAssistantStatus("Retrieving relevant paper context...", "ready");
+
+  try {
+    const response = await fetch(assistantEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: question,
+        history: assistantHistory.slice(-6),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Assistant request failed (${response.status})`);
+    }
+
+    const data = await response.json();
+    const answer = data.answer || "The assistant did not return an answer.";
+    pending.textContent = answer;
+    assistantHistory.push({ role: "user", content: question });
+    assistantHistory.push({ role: "assistant", content: answer });
+    setAssistantStatus(
+      data.sources?.length ? `Sources: ${data.sources.join(", ")}` : "Answered from paper and code context.",
+      "ready",
+    );
+  } catch (error) {
+    pending.textContent =
+      "I could not reach the assistant backend. Check the Worker URL and Cloudflare deployment.";
+    setAssistantStatus(error.message, "error");
+  } finally {
+    assistantInput.disabled = false;
+    assistantForm.querySelector("button").disabled = false;
+    assistantInput.focus();
+  }
+});
