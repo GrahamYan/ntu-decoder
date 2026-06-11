@@ -120,10 +120,11 @@ a {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
   padding: 88px 0 54px;
-  display: grid;
+  display: block;
+  /* display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
   gap: 44px;
-  align-items: end;
+  align-items: end; */
 }
 
 .compact-hero {
