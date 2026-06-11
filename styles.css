@@ -1213,13 +1213,13 @@ svg {
 }
 
 .assistant-fab {
-  min-height: 48px;
-  padding: 0 18px;
+  min-height: 42px;
+  padding: 0 14px;
   border: 1px solid #bfd4d2;
   border-radius: 999px;
   color: #fff;
   background: var(--teal);
-  box-shadow: 0 14px 32px rgba(22, 32, 36, 0.18);
+  box-shadow: 0 10px 24px rgba(22, 32, 36, 0.16);
   font: inherit;
   font-weight: 780;
   cursor: pointer;
