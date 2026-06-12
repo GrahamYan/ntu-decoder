@@ -29,60 +29,60 @@
     </header>
 
     <main id="top">
-      <section class="hero compact-hero">
-        <div class="hero-copy">
+      <section class="hero compact-hero" style="padding-bottom: 64px; border-bottom: 1px solid var(--line); margin-bottom: 64px;">
+        <div class="hero-header" style="margin-bottom: 48px;">
           <p class="eyebrow">Neural Transfer Unification (NTU) for quantum error correction</p>
-          <h1>Efficient foundation decoders for fault-tolerant quantum computing</h1>
-          <p class="hero-summary">
-            How do we efficiently scale neural decoders? <strong>Neural Transfer Unification (NTU)</strong> is an architecture-agnostic transfer-learning framework that solves exactly this. 
-            By mapping the scale-invariant structure of QEC codes to learned neural representations, 
-            NTU allows error knowledge from smaller codes to transfer directly to massive fault-tolerant regimes—dramatically reducing compute overhead and completely eliminating the cold-start problem.
-          </p>
-
-        <div class="author-block">
-            <p class="authors">
-              <a href="https://grahamyan.github.io" target="_blank" class="author-link">Ge Yan</a><sup>1</sup>, 
-              Shanchuan Li<sup>1,2</sup>, 
-              Shiyi Xiao<sup>1,3</sup>, 
-              Pengyue Ma<sup>1</sup>, 
-              Hanyan Cao<sup>4</sup>, 
-              Feng Pan<sup>4,*</sup>, and 
-              <a href="https://yuxuan-du.github.io" target="_blank" class="author-link">Yuxuan Du</a><sup>1,*</sup>
-            </p>
-            <p class="affiliations">
-              <sup>1</sup> Nanyang Technological University &nbsp;&nbsp;&nbsp;
-              <sup>2</sup> Tokyo University of Agriculture and Technology<br>
-              <sup>3</sup> Shanghai Jiao Tong University &nbsp;&nbsp;&nbsp;
-              <sup>4</sup> Singapore University of Technology and Design
-            </p>
-            <p class="correspondence">
-              <small><sup>*</sup> Corresponding authors</small>
-            </p>
-          </div>
-
-          <div class="hero-actions">
-            <a class="button primary" href="Transfer_learning_is_all_you_need_for_scalable_neural_decoder.pdf">
-              Paper PDF
-            </a>
-            <a class="button" href="#interaction">Interactive demo</a>
-            <button class="button" id="open-assistant-hero" type="button">Ask AI assistant</button>
-          </div>
+          <h1 style="font-size: 3rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.03em;">
+            Efficient foundation decoders for fault-tolerant quantum computing
+          </h1>
         </div>
-
-        <!-- <aside class="hero-panel" aria-label="Key claims">
-          <div class="metric">
-            <span class="metric-value">n, k, d</span>
-            <span class="metric-label">Code size, logical capacity, and distance define the task</span>
+      
+        <div style="display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 56px; align-items: flex-start;">
+      
+          <div class="hero-copy" style="margin: 0; padding: 0; max-width: 100%;">
+            <p class="hero-summary" style="text-align: justify;">
+              How do we efficiently scale neural decoders? <strong>Neural Transfer Unification (NTU)</strong> is an architecture-agnostic transfer-learning framework that solves exactly this. 
+              By mapping the scale-invariant structure of QEC codes to learned neural representations, 
+              NTU allows error knowledge from smaller codes to transfer directly to massive fault-tolerant regimes—dramatically reducing compute overhead and completely eliminating the cold-start problem.
+            </p>
+      
+            <div class="author-block">
+              <p class="authors">
+                <a href="https://grahamyan.github.io" target="_blank" class="author-link">Ge Yan</a><sup>1</sup>, 
+                Shanchuan Li<sup>1,2</sup>, 
+                Shiyi Xiao<sup>1,3</sup>, 
+                Pengyue Ma<sup>1</sup>, 
+                Hanyan Cao<sup>4</sup>, 
+                Feng Pan<sup>4,*</sup>, and 
+                <a href="https://yuxuan-du.github.io" target="_blank" class="author-link">Yuxuan Du</a><sup>1,*</sup>
+              </p>
+              <p class="affiliations">
+                <sup>1</sup> Nanyang Technological University &nbsp;&nbsp;&nbsp;
+                <sup>2</sup> Tokyo University of Agriculture and Technology<br>
+                <sup>3</sup> Shanghai Jiao Tong University &nbsp;&nbsp;&nbsp;
+                <sup>4</sup> Singapore University of Technology and Design
+              </p>
+              <p class="correspondence">
+                <small><sup>*</sup> Corresponding authors</small>
+              </p>
+            </div>
+      
+            <div class="hero-actions">
+              <a class="button primary" href="Transfer_learning_is_all_you_need_for_scalable_neural_decoder.pdf">
+                Paper PDF
+              </a>
+              <a class="button" href="#interaction">Interactive demo</a>
+              <button class="button" id="open-assistant-hero" type="button">Ask AI assistant</button>
+            </div>
           </div>
-          <div class="metric">
-            <span class="metric-value">2 routes</span>
-            <span class="metric-label">Predict physical errors or logical status</span>
+      
+          <div class="hero-visual" style="display: flex; justify-content: flex-end;">
+            <figure style="background: #ffffff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); margin: 0; max-width: 100%; line-height: 0;">
+              <img src="assets/flops-plot.png" alt="Shattering the compute wall: Scratch vs NTU" style="width: 100%; height: auto; display: block; border-radius: 4px;" />
+            </figure>
           </div>
-          <div class="metric">
-            <span class="metric-value">Surface + BB</span>
-            <span class="metric-label">Planar and quantum LDPC code families</span>
-          </div>
-        </aside> -->
+      
+        </div>
       </section>
 
       <section id="introduction" class="section narrative-section">
