@@ -135,10 +135,10 @@
         </article>
 
         <div id="interaction" class="section-heading compact-heading" style="border-top: 1px solid var(--line); padding-top: 64px;">
-          <p class="eyebrow">Interactive Companion</p>
-          <h2>See the structural invariance in action.</h2>
+          <!-- <p class="eyebrow">Interactive Companion</p> -->
+          <h3>Scale invariance visualizer</h3>
           <p style="text-align: justify; max-width: 920px;">
-            Before diving into the performance metrics, use this live sandbox to explore how physical error motifs map to localized detector events. Select a code family, sample a local error configuration, and alter the code distance <code>d</code> to observe how the fundamental local perception topology remains rigidly preserved across expanding scales.
+            To experience the core mechanism of the NTU framework, start by selecting a base code distance and choose an <b>Error pattern</b> to generate a local cluster of physical errors along with their corresponding detector events. Next, scale up the code distance <code>d</code> via the dropdown menu. You will observe that while the global lattice expands, the localized topological footprint of the detector events remains strictly invariant—demonstrating exactly how local perception motifs seamlessly transfer to larger codes without retraining.
           </p>
         </div>
 
@@ -210,7 +210,7 @@
           <div class="lab-visuals qec-visuals">
             <div class="lattice-card qec-lattice-card">
               <div class="panel-title qec-panel-title">
-                <span>Spacetime Syndrome Lattice</span>
+                <span>Syndrome display</span>
                 <strong id="layout-label">[[49,1,7]] Target</strong>
               </div>
               <svg id="code-lattice" viewBox="0 0 800 500" role="img" aria-label="Spacetime QEC lattice visualization"></svg>
