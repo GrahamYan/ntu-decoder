@@ -224,8 +224,8 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
                     circuit.append("X_ERROR", X_check_offset + i, p_after_reset_flip_probability)
                     circuit.append("H", [X_check_offset + i])
                     circuit.append("DEPOLARIZE1", X_check_offset + i, p_after_clifford_depolarization)
-            else:
-                circuit.append("Z_ERROR", X_check_offset + i, p_after_reset_flip_probability)
+                else:
+                    circuit.append("Z_ERROR", X_check_offset + i, p_after_reset_flip_probability)
                 circuit.append("DEPOLARIZE1", R_data_offset + i, p_before_round_data_depolarization)
         else:
             for i in range(n//2):
@@ -1046,22 +1046,22 @@ def main_generate_dems():
     parser.add_argument("--rounds", type=int, default=None,
                         help="Override the default round count for the selected block size.")
     args = parser.parse_args()
-    code_configs = {
+    code_table = {
         72:  dict(l=6,  m=6,  A_x_pows=[3], A_y_pows=[1, 2], B_x_pows=[1, 2], B_y_pows=[3], rounds=6),
         144: dict(l=12, m=6,  A_x_pows=[3], A_y_pows=[1, 2], B_x_pows=[1, 2], B_y_pows=[3], rounds=12),
     }
     if args.block_size is not None:
-        if args.block_size not in code_configs:
+        if args.block_size not in code_table:
             raise SystemExit(f"unsupported block_size={args.block_size}")
-        code_configs = {args.block_size: code_configs[args.block_size]}
+        code_table = {args.block_size: code_table[args.block_size]}
     if args.rounds is not None:
         if args.block_size is None:
             raise SystemExit("--rounds requires --block_size")
-        code_configs[args.block_size]["rounds"] = args.rounds
+        code_table[args.block_size]["rounds"] = args.rounds
 
     target_ps = [args.p] if args.p is not None else [0.001, 0.002, 0.003, 0.004, 0.005]
     os.makedirs(args.out_dir, exist_ok=True)
-    for n, cfg in code_configs.items():
+    for n, cfg in code_table.items():
         for p in target_ps:
             filename = os.path.join(args.out_dir, f"{n}_12_{cfg['rounds']}_{p}.dem")
             if os.path.exists(filename) and not args.force:

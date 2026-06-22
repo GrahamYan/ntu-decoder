@@ -222,8 +222,8 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
                     circuit.append("X_ERROR", X_check_offset + i, p_after_reset_flip_probability)
                     circuit.append("H", [X_check_offset + i])
                     circuit.append("DEPOLARIZE1", X_check_offset + i, p_after_clifford_depolarization)
-            else:
-                circuit.append("Z_ERROR", X_check_offset + i, p_after_reset_flip_probability)
+                else:
+                    circuit.append("Z_ERROR", X_check_offset + i, p_after_reset_flip_probability)
                 circuit.append("DEPOLARIZE1", R_data_offset + i, p_before_round_data_depolarization)
         else:
             for i in range(n//2):
