@@ -12,7 +12,9 @@ small codes to transfer directly to large-scale fault-tolerant regimes —
 dramatically reducing training overhead and eliminating the cold-start problem.
 
 📄 **Paper**: *Efficient Foundation Decoders for Fault-Tolerant Quantum Computing*
+
 🌐 **Project page**: [https://grahamyan.github.io/ntu-decoder/](https://grahamyan.github.io/ntu-decoder/)
+
 🤗 **Model weights**: [Dreamworldsmile/ntu-surface-code-decoder](https://huggingface.co/Dreamworldsmile/ntu-surface-code-decoder)
 
 ---
