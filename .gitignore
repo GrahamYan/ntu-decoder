@@ -1,15 +1,7 @@
 .DS_Store
 main.tex
-1d_extended.pdf
-BB.pdf
-bb72_training_dynamic_perqubit_30k.pdf
-fig_ablation_rope_embedding(old).pdf
-fig_ablation_rope_embedding.pdf
-figure 1.pdf
-surface.pdf
-surface_ablation.pdf
-surface_transfer_d11_from_d7ckpts.pdf
-transformer_transfer_144_from_72ckpts.pdf
-zeros_collapse.pdf
+*.pdf
+*.pt
+*.pth
 codes/
 paper-assistant-worker/node_modules/

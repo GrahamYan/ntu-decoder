@@ -1,0 +1,49 @@
+# =============================================================================
+# NTU Decoder — Conda environment specification
+# =============================================================================
+#
+# Create:  conda env create -f environment.yml
+# Update:  conda env update -f environment.yml --prune
+#
+# This file captures the full environment used for training and evaluation.
+# Adjust the CUDA toolkit version to match your system (tested with CUDA 12.1).
+# =============================================================================
+
+name: tennis
+channels:
+  - pytorch
+  - pyg
+  - conda-forge
+  - defaults
+
+dependencies:
+  # --- Language -----------------------------------------------------------------
+  - python=3.10
+
+  # --- Core scientific computing ------------------------------------------------
+  - numpy>=1.24
+  - scipy>=1.10
+
+  # --- PyTorch (GPU-enabled) ----------------------------------------------------
+  - pytorch::pytorch>=2.1
+  - pytorch::pytorch-cuda=12.1
+  - pytorch::torchvision  # pulled in by torch_geometric
+
+  # --- Stim QEC simulator -------------------------------------------------------
+  - conda-forge::stim>=1.13
+
+  # --- Hugging Face Hub ---------------------------------------------------------
+  - conda-forge::huggingface_hub>=0.20
+
+  # --- PyTorch Geometric (Neural-BP decoder) ------------------------------------
+  - pyg::pyg>=2.5
+  - pyg::pytorch-scatter>=2.1
+
+  # --- Surface code baselines ---------------------------------------------------
+  - conda-forge::pymatching>=2.1
+
+  # --- Pip-only packages (BB classical baselines, optional) ---------------------
+  - pip
+  - pip:
+      # - ldpc          # BP-OSD decoder
+      # - relay_bp      # Relay BP decoder

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """BB Transformer decoder for bivariate-bicycle code memory experiments."""
+
 from __future__ import annotations
 
 import argparse
@@ -24,10 +25,27 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, IterableDataset
 
 
+def download_from_hf(repo_id: str, filename: str, cache_dir: str | None = None) -> str:
+    """Download a checkpoint from the Hugging Face Hub and return the local path.
+
+    Args:
+        repo_id: Hugging Face Hub repository ID (e.g. ``Dreamworldsmile/ntu-surface-code-decoder``).
+        filename: File path within the repository (e.g. ``bb/bb72_transformer.pt``).
+        cache_dir: Optional custom cache directory. Defaults to
+            ``~/.cache/huggingface/hub/``.
+
+    Returns:
+        Absolute path to the downloaded file on local disk.
+    """
+    from huggingface_hub import hf_hub_download
+
+    return hf_hub_download(repo_id=repo_id, filename=filename, cache_dir=cache_dir)
+
 
 # ============================================================================
 # BB code construction
 # ============================================================================
+
 
 def row_echelon(mat, reduced=False):
     m, n = np.shape(mat)
@@ -54,25 +72,26 @@ def row_echelon(mat, reduced=False):
                 # Transformation matrix update to reflect this row swap
                 transform[[swap_row_index, pivot_row]] = transform[[pivot_row, swap_row_index]]
 
-        if mat[pivot_row, col]: # will evaluate to True if this column is not all-zero
-            if not reduced: # clean entries below the pivot 
+        if mat[pivot_row, col]:  # will evaluate to True if this column is not all-zero
+            if not reduced:  # clean entries below the pivot
                 elimination_range = [k for k in range(pivot_row + 1, m)]
-            else:           # clean entries above and below the pivot
+            else:  # clean entries above and below the pivot
                 elimination_range = [k for k in range(m) if k != pivot_row]
             for idx_r in elimination_range:
-                if mat[idx_r, col]:    
+                if mat[idx_r, col]:
                     mat[idx_r] ^= mat[pivot_row]
                     transform[idx_r] ^= transform[pivot_row]
             pivot_row += 1
             pivot_cols.append(col)
 
-        if pivot_row >= m: # no more rows to search
+        if pivot_row >= m:  # no more rows to search
             break
 
     rank = pivot_row
     row_ech_form = mat.astype(int)
 
     return [row_ech_form, rank, transform.astype(int), pivot_cols]
+
 
 def kernel(mat):
     transpose = mat.T
@@ -81,34 +100,37 @@ def kernel(mat):
     ker = transform[rank:m]
     return ker, rank, pivot_cols
 
-class css_code(): # a refactored version of Roffe's package
+
+class css_code:  # a refactored version of Roffe's package
     # do as less row echelon form calculation as possible.
-    def __init__(self, hx=np.array([[]]), hz=np.array([[]]), name=None, name_prefix="", check_css=False):
+    def __init__(
+        self, hx=np.array([[]]), hz=np.array([[]]), name=None, name_prefix="", check_css=False
+    ):
 
-        self.hx = hx # hx pcm
-        self.hz = hz # hz pcm
+        self.hx = hx  # hx pcm
+        self.hz = hz  # hz pcm
 
-        self.lx = np.array([[]]) # x logicals
-        self.lz = np.array([[]]) # z logicals
+        self.lx = np.array([[]])  # x logicals
+        self.lz = np.array([[]])  # z logicals
 
-        self.N = np.nan # block length
-        self.K = np.nan # code dimension
-        self.L = np.nan # max column weight
-        self.Q = np.nan # max row weight
+        self.N = np.nan  # block length
+        self.K = np.nan  # code dimension
+        self.L = np.nan  # max column weight
+        self.Q = np.nan  # max row weight
 
         _, nx = self.hx.shape
         _, nz = self.hz.shape
 
         assert nx == nz, "hx and hz should have equal number of columns!"
-        assert nx != 0,  "number of variable nodes should not be zero!"
-        if check_css: # For performance reason, default to False
+        assert nx != 0, "number of variable nodes should not be zero!"
+        if check_css:  # For performance reason, default to False
             assert not np.any(hx @ hz.T % 2), "CSS constraint not satisfied"
-        
+
         self.N = nx
-        self.hx_perp, self.rank_hx, self.pivot_hx = kernel(hx) # orthogonal complement
+        self.hx_perp, self.rank_hx, self.pivot_hx = kernel(hx)  # orthogonal complement
         self.hz_perp, self.rank_hz, self.pivot_hz = kernel(hz)
-        self.hx_basis = self.hx[self.pivot_hx] # same as calling row_basis(self.hx)
-        self.hz_basis = self.hz[self.pivot_hz] # but saves one row echelon calculation
+        self.hx_basis = self.hx[self.pivot_hx]  # same as calling row_basis(self.hx)
+        self.hz_basis = self.hz[self.pivot_hz]  # but saves one row echelon calculation
         self.K = self.N - self.rank_hx - self.rank_hz
 
         self.compute_ldpc_params()
@@ -118,12 +140,12 @@ class css_code(): # a refactored version of Roffe's package
 
     def compute_ldpc_params(self):
 
-        #column weights
+        # column weights
         hx_l = np.max(np.sum(self.hx, axis=0))
         hz_l = np.max(np.sum(self.hz, axis=0))
         self.L = np.max([hx_l, hz_l]).astype(int)
 
-        #row weights
+        # row weights
         hx_q = np.max(np.sum(self.hx, axis=1))
         hz_q = np.max(np.sum(self.hz, axis=1))
         self.Q = np.max([hx_q, hz_q]).astype(int)
@@ -144,24 +166,25 @@ class css_code(): # a refactored version of Roffe's package
         self.lz = compute_lz(self.hx_perp, self.hz_basis)
 
         return self.lx, self.lz
-    
+
 
 def create_circulant_matrix(l, pows):
-    h = np.zeros((l,l), dtype=int)
+    h = np.zeros((l, l), dtype=int)
     for i in range(l):
         for c in pows:
-            h[(i+c)%l, i] = 1
+            h[(i + c) % l, i] = 1
     return h
 
+
 def create_bivariate_bicycle_codes(l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows, name=None):
-    S_l=create_circulant_matrix(l, [-1])
-    S_m=create_circulant_matrix(m, [-1])
+    S_l = create_circulant_matrix(l, [-1])
+    S_m = create_circulant_matrix(m, [-1])
     x = kron(S_l, identity(m, dtype=int))
     y = kron(identity(l, dtype=int), S_m)
     A_list = [x**p for p in A_x_pows] + [y**p for p in A_y_pows]
-    B_list = [y**p for p in B_y_pows] + [x**p for p in B_x_pows] 
-    A = reduce(lambda x,y: x+y, A_list).toarray()
-    B = reduce(lambda x,y: x+y, B_list).toarray()
+    B_list = [y**p for p in B_y_pows] + [x**p for p in B_x_pows]
+    A = reduce(lambda x, y: x + y, A_list).toarray()
+    B = reduce(lambda x, y: x + y, B_list).toarray()
     hx = np.hstack((A, B))
     hz = np.hstack((B.T, A.T))
     return css_code(hx, hz, name=name, name_prefix="BB", check_css=True), A_list, B_list
@@ -171,7 +194,7 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
     n = code.N
     a1, a2, a3 = A_list
     b1, b2, b3 = B_list
-    
+
     def nnz(m):
         a, b = m.nonzero()
         return b[np.argsort(a)]
@@ -181,15 +204,15 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
 
     A1_T, A2_T, A3_T = nnz(a1.T), nnz(a2.T), nnz(a3.T)
     B1_T, B2_T, B3_T = nnz(b1.T), nnz(b2.T), nnz(b3.T)
-    
+
     # |+> ancilla: 0 ~ n/2-1. Control in CNOTs.
     X_check_offset = 0
-    # L data qubits: n/2 ~ n-1. 
-    L_data_offset = n//2
+    # L data qubits: n/2 ~ n-1.
+    L_data_offset = n // 2
     # R data qubits: n ~ 3n/2-1.
     R_data_offset = n
     # |0> ancilla: 3n/2 ~ 2n-1. Target in CNOTs.
-    Z_check_offset = 3*n//2
+    Z_check_offset = 3 * n // 2
 
     p_after_clifford_depolarization = p
     p_after_reset_flip_probability = p
@@ -198,43 +221,51 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
 
     def append_detector_initial(roundsid):
         detector_circuit_str = ""
-        for i in range(n//2):
+        for i in range(n // 2):
             detector_circuit_str += f"DETECTOR(0, 0, {roundsid}) rec[{-n//2+i}]\n"
-        detector_circuit = stim.Circuit(detector_circuit_str)   
+        detector_circuit = stim.Circuit(detector_circuit_str)
         return detector_circuit
-    
+
     def append_detector_repeat(roundsid):
         detector_repeat_circuit_str = ""
-        for i in range(n//2):
-            detector_repeat_circuit_str += f"DETECTOR(0, 0, {roundsid}) rec[{-n//2+i}] rec[{-n-n//2+i}]\n"
+        for i in range(n // 2):
+            detector_repeat_circuit_str += (
+                f"DETECTOR(0, 0, {roundsid}) rec[{-n//2+i}] rec[{-n-n//2+i}]\n"
+            )
         detector_repeat_circuit = stim.Circuit(detector_repeat_circuit_str)
         return detector_repeat_circuit
 
-
-
     def append_blocks(circuit, roundsid, repeat=False):
         # Round 1
-        if repeat:        
-            for i in range(n//2):
+        if repeat:
+            for i in range(n // 2):
                 # measurement preparation errors
                 circuit.append("X_ERROR", Z_check_offset + i, p_after_reset_flip_probability)
                 if HZH:
                     circuit.append("X_ERROR", X_check_offset + i, p_after_reset_flip_probability)
                     circuit.append("H", [X_check_offset + i])
-                    circuit.append("DEPOLARIZE1", X_check_offset + i, p_after_clifford_depolarization)
+                    circuit.append(
+                        "DEPOLARIZE1", X_check_offset + i, p_after_clifford_depolarization
+                    )
                 else:
                     circuit.append("Z_ERROR", X_check_offset + i, p_after_reset_flip_probability)
                 circuit.append("DEPOLARIZE1", R_data_offset + i, p_before_round_data_depolarization)
         else:
-            for i in range(n//2):
+            for i in range(n // 2):
                 circuit.append("H", [X_check_offset + i])
                 if HZH:
-                    circuit.append("DEPOLARIZE1", X_check_offset + i, p_after_clifford_depolarization)
+                    circuit.append(
+                        "DEPOLARIZE1", X_check_offset + i, p_after_clifford_depolarization
+                    )
 
-        for i in range(n//2):
+        for i in range(n // 2):
             # CNOTs from R data to to Z-checks
             circuit.append("CNOT", [R_data_offset + A1_T[i], Z_check_offset + i])
-            circuit.append("DEPOLARIZE2", [R_data_offset + A1_T[i], Z_check_offset + i], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [R_data_offset + A1_T[i], Z_check_offset + i],
+                p_after_clifford_depolarization,
+            )
             # identity gate on L data
             circuit.append("DEPOLARIZE1", L_data_offset + i, p_before_round_data_depolarization)
 
@@ -242,74 +273,118 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
         circuit.append("TICK")
 
         # Round 2
-        for i in range(n//2):
+        for i in range(n // 2):
             # CNOTs from X-checks to L data
             circuit.append("CNOT", [X_check_offset + i, L_data_offset + A2[i]])
-            circuit.append("DEPOLARIZE2", [X_check_offset + i, L_data_offset + A2[i]], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [X_check_offset + i, L_data_offset + A2[i]],
+                p_after_clifford_depolarization,
+            )
             # CNOTs from R data to Z-checks
             circuit.append("CNOT", [R_data_offset + A3_T[i], Z_check_offset + i])
-            circuit.append("DEPOLARIZE2", [R_data_offset + A3_T[i], Z_check_offset + i], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [R_data_offset + A3_T[i], Z_check_offset + i],
+                p_after_clifford_depolarization,
+            )
 
         # tick
         circuit.append("TICK")
 
         # Round 3
-        for i in range(n//2):
+        for i in range(n // 2):
             # CNOTs from X-checks to R data
             circuit.append("CNOT", [X_check_offset + i, R_data_offset + B2[i]])
-            circuit.append("DEPOLARIZE2", [X_check_offset + i, R_data_offset + B2[i]], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [X_check_offset + i, R_data_offset + B2[i]],
+                p_after_clifford_depolarization,
+            )
             # CNOTs from L data to Z-checks
             circuit.append("CNOT", [L_data_offset + B1_T[i], Z_check_offset + i])
-            circuit.append("DEPOLARIZE2", [L_data_offset + B1_T[i], Z_check_offset + i], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [L_data_offset + B1_T[i], Z_check_offset + i],
+                p_after_clifford_depolarization,
+            )
 
         # tick
         circuit.append("TICK")
 
         # Round 4
-        for i in range(n//2):
+        for i in range(n // 2):
             # CNOTs from X-checks to R data
             circuit.append("CNOT", [X_check_offset + i, R_data_offset + B1[i]])
-            circuit.append("DEPOLARIZE2", [X_check_offset + i, R_data_offset + B1[i]], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [X_check_offset + i, R_data_offset + B1[i]],
+                p_after_clifford_depolarization,
+            )
             # CNOTs from L data to Z-checks
             circuit.append("CNOT", [L_data_offset + B2_T[i], Z_check_offset + i])
-            circuit.append("DEPOLARIZE2", [L_data_offset + B2_T[i], Z_check_offset + i], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [L_data_offset + B2_T[i], Z_check_offset + i],
+                p_after_clifford_depolarization,
+            )
 
         # tick
         circuit.append("TICK")
 
         # Round 5
-        for i in range(n//2):
+        for i in range(n // 2):
             # CNOTs from X-checks to R data
             circuit.append("CNOT", [X_check_offset + i, R_data_offset + B3[i]])
-            circuit.append("DEPOLARIZE2", [X_check_offset + i, R_data_offset + B3[i]], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [X_check_offset + i, R_data_offset + B3[i]],
+                p_after_clifford_depolarization,
+            )
             # CNOTs from L data to Z-checks
             circuit.append("CNOT", [L_data_offset + B3_T[i], Z_check_offset + i])
-            circuit.append("DEPOLARIZE2", [L_data_offset + B3_T[i], Z_check_offset + i], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [L_data_offset + B3_T[i], Z_check_offset + i],
+                p_after_clifford_depolarization,
+            )
 
         # tick
         circuit.append("TICK")
 
         # Round 6
-        for i in range(n//2):
+        for i in range(n // 2):
             # CNOTs from X-checks to L data
             circuit.append("CNOT", [X_check_offset + i, L_data_offset + A1[i]])
-            circuit.append("DEPOLARIZE2", [X_check_offset + i, L_data_offset + A1[i]], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [X_check_offset + i, L_data_offset + A1[i]],
+                p_after_clifford_depolarization,
+            )
             # CNOTs from R data to Z-checks
             circuit.append("CNOT", [R_data_offset + A2_T[i], Z_check_offset + i])
-            circuit.append("DEPOLARIZE2", [R_data_offset + A2_T[i], Z_check_offset + i], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [R_data_offset + A2_T[i], Z_check_offset + i],
+                p_after_clifford_depolarization,
+            )
 
         # tick
         circuit.append("TICK")
 
         # Round 7
-        for i in range(n//2):
+        for i in range(n // 2):
             # CNOTs from X-checks to L data
             circuit.append("CNOT", [X_check_offset + i, L_data_offset + A3[i]])
-            circuit.append("DEPOLARIZE2", [X_check_offset + i, L_data_offset + A3[i]], p_after_clifford_depolarization)
+            circuit.append(
+                "DEPOLARIZE2",
+                [X_check_offset + i, L_data_offset + A3[i]],
+                p_after_clifford_depolarization,
+            )
             # Measure Z-checks
             circuit.append("X_ERROR", Z_check_offset + i, p_before_measure_flip_probability)
             circuit.append("MR", [Z_check_offset + i])
-        
+
         # Z check detectors
         if z_basis:
             if repeat:
@@ -321,9 +396,9 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
 
         # tick
         circuit.append("TICK")
-        
+
         # Round 8
-        for i in range(n//2):
+        for i in range(n // 2):
             if HZH:
                 circuit.append("H", [X_check_offset + i])
                 circuit.append("DEPOLARIZE1", X_check_offset + i, p_after_clifford_depolarization)
@@ -332,7 +407,7 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
             else:
                 circuit.append("Z_ERROR", X_check_offset + i, p_before_measure_flip_probability)
                 circuit.append("MRX", [X_check_offset + i])
-            
+
         # X basis detector
         if not z_basis:
             if repeat:
@@ -341,65 +416,60 @@ def build_circuit(code, A_list, B_list, p, num_repeat, z_basis=True, use_both=Fa
                 circuit += append_detector_initial(roundsid)
         elif use_both and repeat:
             circuit += append_detector_repeat(roundsid)
-        
+
         # tick
         circuit.append("TICK")
 
-   
     circuit = stim.Circuit()
-    for i in range(n//2): # ancilla initialization
+    for i in range(n // 2):  # ancilla initialization
         circuit.append("R", X_check_offset + i)
         circuit.append("R", Z_check_offset + i)
         circuit.append("X_ERROR", X_check_offset + i, p_after_reset_flip_probability)
         circuit.append("X_ERROR", Z_check_offset + i, p_after_reset_flip_probability)
     for i in range(n):
         circuit.append("R" if z_basis else "RX", L_data_offset + i)
-        circuit.append("X_ERROR" if z_basis else "Z_ERROR", L_data_offset + i, p_after_reset_flip_probability)
+        circuit.append(
+            "X_ERROR" if z_basis else "Z_ERROR", L_data_offset + i, p_after_reset_flip_probability
+        )
 
     # begin round tick
-    circuit.append("TICK") 
-    append_blocks(circuit, roundsid = 0, repeat=False) # encoding round
+    circuit.append("TICK")
+    append_blocks(circuit, roundsid=0, repeat=False)  # encoding round
 
     for i in range(1, num_repeat):
         rep_circuit = stim.Circuit()
         append_blocks(rep_circuit, roundsid=i, repeat=True)
         circuit += rep_circuit
-        
-
 
     for i in range(0, n):
         circuit.append("M" if z_basis else "MX", L_data_offset + i)
-        
+
     pcm = code.hz if z_basis else code.hx
     logical_pcm = code.lz if z_basis else code.lx
-    stab_detector_circuit_str = "" # stabilizers
+    stab_detector_circuit_str = ""  # stabilizers
     for i, s in enumerate(pcm):
-        nnz = np.nonzero(s)[0]      # nonzero entries in s-th row 
+        nnz = np.nonzero(s)[0]  # nonzero entries in s-th row
         det_str = f"DETECTOR(0, 0, {num_repeat})"
         for ind in nnz:
-            det_str += f" rec[{-n+ind}]"       
+            det_str += f" rec[{-n+ind}]"
         det_str += f" rec[{-n-n+i}]" if z_basis else f" rec[{-n-n//2+i}]"
         det_str += "\n"
         stab_detector_circuit_str += det_str
     stab_detector_circuit = stim.Circuit(stab_detector_circuit_str)
     circuit += stab_detector_circuit
 
-    log_detector_circuit_str = "" # logical operators
+    log_detector_circuit_str = ""  # logical operators
     for i, l in enumerate(logical_pcm):
         nnz = np.nonzero(l)[0]
         det_str = f"OBSERVABLE_INCLUDE({i})"
         for ind in nnz:
-            det_str += f" rec[{-n+ind}]"        
+            det_str += f" rec[{-n+ind}]"
         det_str += "\n"
         log_detector_circuit_str += det_str
     log_detector_circuit = stim.Circuit(log_detector_circuit_str)
     circuit += log_detector_circuit
 
     return circuit
-
-
-
-
 
 
 def qcc_circuit(
@@ -411,22 +481,27 @@ def qcc_circuit(
     B_x_pows=[1, 2],
     B_y_pows=[3],
     rounds=6,
-    **kwargs):
-    code, A_list, B_list = create_bivariate_bicycle_codes(l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows)
-    circuit = build_circuit(code, A_list, B_list, 
-                        p=error_rate, # physical error rate
-                        num_repeat=rounds, # usually set to code distance
-                        z_basis=True,   # whether in the z-basis or x-basis
-                        use_both=True, # whether use measurement results in both basis to decode one basis
-                       )
+    **kwargs,
+):
+    code, A_list, B_list = create_bivariate_bicycle_codes(
+        l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows
+    )
+    circuit = build_circuit(
+        code,
+        A_list,
+        B_list,
+        p=error_rate,  # physical error rate
+        num_repeat=rounds,  # usually set to code distance
+        z_basis=True,  # whether in the z-basis or x-basis
+        use_both=True,  # whether use measurement results in both basis to decode one basis
+    )
     return circuit
-
-
 
 
 # ============================================================================
 # Cartesian RoPE
 # ============================================================================
+
 
 class CartesianRoPE(nn.Module):
     def __init__(self, head_dim: int, base: float = 100.0):
@@ -445,7 +520,7 @@ class CartesianRoPE(nn.Module):
         i = coords[:, 0].to(device).float()
         j = coords[:, 1].to(device).float()
 
-        fi = torch.einsum("n,k->nk", i, self.inv_freq_i)   # [N, quarter_dim]
+        fi = torch.einsum("n,k->nk", i, self.inv_freq_i)  # [N, quarter_dim]
         fj = torch.einsum("n,k->nk", j, self.inv_freq_j)
 
         freqs_i = torch.cat([fi, fi], dim=-1)
@@ -459,11 +534,11 @@ def apply_rope_2d_cart(q, k, freqs_i, freqs_j):
     q_i, q_j = q[..., :half], q[..., half:]
     k_i, k_j = k[..., :half], k[..., half:]
 
-    fi = freqs_i.unsqueeze(0).unsqueeze(2)   # [1, N, 1, half]
+    fi = freqs_i.unsqueeze(0).unsqueeze(2)  # [1, N, 1, half]
     fj = freqs_j.unsqueeze(0).unsqueeze(2)
 
     def _rotate_half(t, f):
-        t_rot = torch.cat((-t[..., t.shape[-1] // 2:], t[..., :t.shape[-1] // 2]), dim=-1)
+        t_rot = torch.cat((-t[..., t.shape[-1] // 2 :], t[..., : t.shape[-1] // 2]), dim=-1)
         return t * f.cos() + t_rot * f.sin()
 
     q_i = _rotate_half(q_i, fi)
@@ -476,6 +551,7 @@ def apply_rope_2d_cart(q, k, freqs_i, freqs_j):
 # ============================================================================
 # Transformer input mapping
 # ============================================================================
+
 
 @dataclass
 class BBMappingInfo:
@@ -505,8 +581,9 @@ def _polynomial_terms(x_pows: List[int], y_pows: List[int]) -> List[Tuple[int, i
     return [(a, 0) for a in x_pows] + [(0, b) for b in y_pows]
 
 
-def _derive_xx_offsets(a_terms: List[Tuple[int, int]],
-                       b_terms: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+def _derive_xx_offsets(
+    a_terms: List[Tuple[int, int]], b_terms: List[Tuple[int, int]]
+) -> List[Tuple[int, int]]:
     offsets = set()
     for terms in (a_terms, b_terms):
         for t1 in terms:
@@ -517,8 +594,9 @@ def _derive_xx_offsets(a_terms: List[Tuple[int, int]],
     return sorted(offsets)
 
 
-def _derive_xz_offsets(a_terms: List[Tuple[int, int]],
-                       b_terms: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+def _derive_xz_offsets(
+    a_terms: List[Tuple[int, int]], b_terms: List[Tuple[int, int]]
+) -> List[Tuple[int, int]]:
     offsets = set()
     for t_a in a_terms:
         for t_b in b_terms:
@@ -526,10 +604,9 @@ def _derive_xz_offsets(a_terms: List[Tuple[int, int]],
     return sorted(offsets)
 
 
-def _neighbors_by_offsets(coords: torch.Tensor,
-                          offsets: List[Tuple[int, int]],
-                          l: int,
-                          m: int) -> torch.Tensor:
+def _neighbors_by_offsets(
+    coords: torch.Tensor, offsets: List[Tuple[int, int]], l: int, m: int
+) -> torch.Tensor:
     out = torch.zeros((coords.shape[0], len(offsets)), dtype=torch.long)
     for i in range(coords.shape[0]):
         ci, cj = coords[i].tolist()
@@ -541,8 +618,7 @@ def _neighbors_by_offsets(coords: torch.Tensor,
 class BBMapper(nn.Module):
     """Build detector-index and spatial-neighbor buffers for BB circuits."""
 
-    def __init__(self, l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows,
-                 rounds, p=0.005):
+    def __init__(self, l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows, rounds, p=0.005):
         super().__init__()
         self.l = l
         self.m = m
@@ -561,17 +637,29 @@ class BBMapper(nn.Module):
             l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows
         )
         self.circuit = build_circuit(
-            code, A_list, B_list,
-            p=p, num_repeat=rounds,
-            z_basis=True, use_both=True, HZH=False,
+            code,
+            A_list,
+            B_list,
+            p=p,
+            num_repeat=rounds,
+            z_basis=True,
+            use_both=True,
+            HZH=False,
         )
         self.code = code
         self.mapping_info = self._build_mapping()
 
         for name in (
-            "gather_z", "valid_z", "z_neighbors", "z_hint_neighbors",
-            "gather_x", "valid_x", "x_neighbors", "x_hint_neighbors",
-            "spatial_coords_z", "spatial_coords_x",
+            "gather_z",
+            "valid_z",
+            "z_neighbors",
+            "z_hint_neighbors",
+            "gather_x",
+            "valid_x",
+            "x_neighbors",
+            "x_hint_neighbors",
+            "spatial_coords_z",
+            "spatial_coords_x",
         ):
             self.register_buffer(name, getattr(self.mapping_info, name))
 
@@ -629,27 +717,30 @@ class BBMapper(nn.Module):
             spatial_coords_x=spatial_coords.clone(),
             xx_offsets=self.xx_offsets,
             xz_offsets=self.xz_offsets,
-            l=l, m=m, lm=lm,
-            num_t=num_t, rounds=rounds,
+            l=l,
+            m=m,
+            lm=lm,
+            num_t=num_t,
+            rounds=rounds,
             total_detectors=total_detectors,
             K_same=self.K_same,
             K_cross=self.K_cross,
         )
 
 
-
-
 # ============================================================================
 # Output observables
 # ============================================================================
 
+
 @dataclass
 class LogicalBasis:
     name: str
-    representatives: np.ndarray       # [K, N] binary Z-logical reps
-    basis_transform: np.ndarray       # [K, K], new_obs = T @ old_obs
-    detector_transform: np.ndarray    # [total_detectors, K], detector correction
-    stabilizer_coeffs: np.ndarray     # [K, lm], reps = T @ code.lz + C @ H_Z
+    representatives: np.ndarray  # [K, N] binary Z-logical reps
+    basis_transform: np.ndarray  # [K, K], new_obs = T @ old_obs
+    detector_transform: np.ndarray  # [total_detectors, K], detector correction
+    stabilizer_coeffs: np.ndarray  # [K, lm], reps = T @ code.lz + C @ H_Z
+
 
 def gf2_rank(matrix: np.ndarray) -> int:
     a = np.asarray(matrix, dtype=np.uint8).copy() % 2
@@ -710,11 +801,13 @@ def _raw_logical_rep(lz: np.ndarray, coord: np.ndarray) -> np.ndarray:
     return (np.asarray(coord, dtype=np.uint8) @ np.asarray(lz, dtype=np.uint8)) % 2
 
 
-def _build_logical_basis(mapper,
-                         representatives: np.ndarray,
-                         basis_transform: np.ndarray,
-                         name: str,
-                         allow_dependent: bool = False) -> LogicalBasis:
+def _build_logical_basis(
+    mapper,
+    representatives: np.ndarray,
+    basis_transform: np.ndarray,
+    name: str,
+    allow_dependent: bool = False,
+) -> LogicalBasis:
     code = mapper.code
     representatives = np.asarray(representatives, dtype=np.uint8) % 2
     basis_transform = np.asarray(basis_transform, dtype=np.uint8) % 2
@@ -741,15 +834,17 @@ def build_default_observables(mapper) -> LogicalBasis:
         raise ValueError("default BB output convention expects K=12")
     unit = np.eye(code.K, dtype=np.uint8)
     lz = np.asarray(code.lz, dtype=np.uint8) % 2
-    coords_arr = np.stack([
-        *unit[:6],
-        unit[7],
-        unit[7] ^ unit[8] ^ unit[11],
-        unit[6],
-        unit[8] ^ unit[9] ^ unit[10],
-        unit[9] ^ unit[10] ^ unit[11],
-        unit[9] ^ unit[10] ^ unit[11],
-    ])
+    coords_arr = np.stack(
+        [
+            *unit[:6],
+            unit[7],
+            unit[7] ^ unit[8] ^ unit[11],
+            unit[6],
+            unit[8] ^ unit[9] ^ unit[10],
+            unit[9] ^ unit[10] ^ unit[11],
+            unit[9] ^ unit[10] ^ unit[11],
+        ]
+    )
     representatives = np.stack([_raw_logical_rep(lz, row) for row in coords_arr])
     return _build_logical_basis(
         mapper,
@@ -760,7 +855,9 @@ def build_default_observables(mapper) -> LogicalBasis:
     )
 
 
-def _build_detector_transform(mapper, representatives: np.ndarray, basis_transform: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _build_detector_transform(
+    mapper, representatives: np.ndarray, basis_transform: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     code = mapper.code
     hz = np.asarray(code.hz, dtype=np.uint8) % 2
     lz = np.asarray(code.lz, dtype=np.uint8) % 2
@@ -804,6 +901,7 @@ def transform_observables(det: np.ndarray, obs: np.ndarray, basis: LogicalBasis)
 # ============================================================================
 # ============================================================================
 
+
 class RMSNorm(nn.Module):
     def __init__(self, dim, eps=1e-6):
         super().__init__()
@@ -811,7 +909,11 @@ class RMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(dim))
 
     def forward(self, x):
-        return self.weight * x.to(torch.float32).pow(2).mean(-1, keepdim=True).add(self.eps).rsqrt() * x
+        return (
+            self.weight
+            * x.to(torch.float32).pow(2).mean(-1, keepdim=True).add(self.eps).rsqrt()
+            * x
+        )
 
 
 class SwiGLU(nn.Module):
@@ -827,6 +929,7 @@ class SwiGLU(nn.Module):
 
 class RecurrentBlock(nn.Module):
     """Per-stabilizer GRU residual block with persistent temporal state."""
+
     def __init__(self, d_model):
         super().__init__()
         self.norm = RMSNorm(d_model)
@@ -847,11 +950,12 @@ class RecurrentBlock(nn.Module):
 
 
 def _rotate_half(t):
-    return torch.cat((-t[..., t.shape[-1] // 2:], t[..., :t.shape[-1] // 2]), dim=-1)
+    return torch.cat((-t[..., t.shape[-1] // 2 :], t[..., : t.shape[-1] // 2]), dim=-1)
 
 
 class SpatialTransformerBlock(nn.Module):
     """Spatial self-attention block with signed-wrap relative RoPE."""
+
     def __init__(self, dim, n_heads):
         super().__init__()
         self.dim = dim
@@ -897,6 +1001,7 @@ class SpatialTransformerBlock(nn.Module):
 
 class AQCrossAttentionLayer(nn.Module):
     """Cross-attention block where logical queries attend to stabilizer features."""
+
     def __init__(self, d_model, n_heads):
         super().__init__()
         self.norm_q = nn.LayerNorm(d_model)
@@ -913,7 +1018,9 @@ class AQCrossAttentionLayer(nn.Module):
         if attn_mask is not None:
             attn_mask = attn_mask.to(device=q_norm.device, dtype=q_norm.dtype)
         attn_out, _ = self.cross_attn(
-            q_norm, kv_norm, kv_norm,
+            q_norm,
+            kv_norm,
+            kv_norm,
             key_padding_mask=padding_mask,
             attn_mask=attn_mask,
         )
@@ -922,15 +1029,22 @@ class AQCrossAttentionLayer(nn.Module):
         return q
 
 
+# ============================================================================
+# ============================================================================
 
-# ============================================================================
-# ============================================================================
 
 class AlphaQubitV2_BB(nn.Module):
     """BB Transformer decoder with recurrent and spatial-attention blocks."""
-    def __init__(self, mapper: BBMapper, n_logicals: int, d_model: int = 512, n_heads: int = 8,
-                 rope_delta_mode: str = "signed_neg_half",
-                 logical_representatives=None):
+
+    def __init__(
+        self,
+        mapper: BBMapper,
+        n_logicals: int,
+        d_model: int = 512,
+        n_heads: int = 8,
+        rope_delta_mode: str = "signed_neg_half",
+        logical_representatives=None,
+    ):
         super().__init__()
         self.d_model = d_model
         self.n_logicals = n_logicals
@@ -950,22 +1064,22 @@ class AlphaQubitV2_BB(nn.Module):
         self.K_cross = info.K_cross
 
         # Z mapping buffers
-        self.register_buffer('gather_z', info.gather_z)
-        self.register_buffer('valid_z', info.valid_z.view(self.num_t, self.num_z))
-        self.register_buffer('z_neighbors', info.z_neighbors)
-        self.register_buffer('z_hint_neighbors', info.z_hint_neighbors)
+        self.register_buffer("gather_z", info.gather_z)
+        self.register_buffer("valid_z", info.valid_z.view(self.num_t, self.num_z))
+        self.register_buffer("z_neighbors", info.z_neighbors)
+        self.register_buffer("z_hint_neighbors", info.z_hint_neighbors)
         # X mapping buffers
-        self.register_buffer('gather_x', info.gather_x)
-        self.register_buffer('valid_x', info.valid_x.view(self.num_t, self.num_x))
-        self.register_buffer('x_neighbors', info.x_neighbors)
-        self.register_buffer('x_hint_neighbors', info.x_hint_neighbors)
+        self.register_buffer("gather_x", info.gather_x)
+        self.register_buffer("valid_x", info.valid_x.view(self.num_t, self.num_x))
+        self.register_buffer("x_neighbors", info.x_neighbors)
+        self.register_buffer("x_hint_neighbors", info.x_hint_neighbors)
         self.l = info.l
         self.m = info.m
         spatial_coords = torch.cat([info.spatial_coords_z, info.spatial_coords_x], dim=0)
-        self.register_buffer('spatial_coords', spatial_coords)
+        self.register_buffer("spatial_coords", spatial_coords)
 
         logical_readout_bias = self._build_logical_readout_bias(mapper, logical_representatives)
-        self.register_buffer('logical_readout_bias', logical_readout_bias)
+        self.register_buffer("logical_readout_bias", logical_readout_bias)
         self.logical_anchor_attn_scale = nn.Parameter(torch.tensor(1.0))
         self.logical_anchor_context_scale = nn.Parameter(torch.tensor(0.1))
         self.logical_anchor_norm = nn.LayerNorm(d_model)
@@ -974,16 +1088,18 @@ class AlphaQubitV2_BB(nn.Module):
         # Keep the expressive local syndrome-pattern lookup, but override
         # nn.Embedding's default N(0,1) initialization with a transformer-scale
         # std so the large 8192 x d_model table does not dominate activations.
-        n_space = 2 ** (1 + self.K_same)           # center + K_same same-type
+        n_space = 2 ** (1 + self.K_same)  # center + K_same same-type
         self.emb_space = nn.Embedding(n_space, d_model)
-        self.emb_temp = nn.Embedding(4, d_model)    # T_prev * 2 + T_curr
-        n_hints = 2 ** self.K_cross
+        self.emb_temp = nn.Embedding(4, d_model)  # T_prev * 2 + T_curr
+        n_hints = 2**self.K_cross
         self.emb_x_hints = nn.Embedding(n_hints, d_model)
         self._reset_input_embeddings()
 
         self.stem_norm = RMSNorm(d_model)
         self.stem_resnet = nn.Sequential(
-            nn.Linear(d_model, 2 * d_model), nn.GELU(), nn.Linear(2 * d_model, d_model),
+            nn.Linear(d_model, 2 * d_model),
+            nn.GELU(),
+            nn.Linear(2 * d_model, d_model),
         )
 
         self.type_emb = nn.Parameter(torch.randn(2, d_model) * 0.02)
@@ -998,13 +1114,21 @@ class AlphaQubitV2_BB(nn.Module):
         self.n_rnn = 5
         self.rnn_layers = nn.ModuleList([RecurrentBlock(d_model) for _ in range(self.n_rnn)])
         self.n_tf = 6
-        self.tf_layers = nn.ModuleList([SpatialTransformerBlock(d_model, n_heads) for _ in range(self.n_tf)])
+        self.tf_layers = nn.ModuleList(
+            [SpatialTransformerBlock(d_model, n_heads) for _ in range(self.n_tf)]
+        )
 
         # ---- Readout (K logical queries) ----
         self.logical_query_embed = nn.Parameter(torch.randn(1, n_logicals, d_model) * 0.02)
-        self.readout_layers = nn.ModuleList([AQCrossAttentionLayer(d_model, n_heads) for _ in range(2)])
-        self.res_dense1 = nn.Sequential(nn.LayerNorm(d_model), nn.Linear(d_model, d_model), nn.GELU())
-        self.res_dense2 = nn.Sequential(nn.LayerNorm(d_model), nn.Linear(d_model, d_model), nn.GELU())
+        self.readout_layers = nn.ModuleList(
+            [AQCrossAttentionLayer(d_model, n_heads) for _ in range(2)]
+        )
+        self.res_dense1 = nn.Sequential(
+            nn.LayerNorm(d_model), nn.Linear(d_model, d_model), nn.GELU()
+        )
+        self.res_dense2 = nn.Sequential(
+            nn.LayerNorm(d_model), nn.Linear(d_model, d_model), nn.GELU()
+        )
         self.head_norm = nn.LayerNorm(d_model)
         self.head_weight = nn.Parameter(torch.empty(n_logicals, d_model))
         self.head_bias = nn.Parameter(torch.zeros(n_logicals))
@@ -1020,8 +1144,10 @@ class AlphaQubitV2_BB(nn.Module):
     @staticmethod
     def _time_sinusoidal(num_t: int, d_model: int, device):
         position = torch.arange(num_t, dtype=torch.float32, device=device).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32, device=device)
-                             * (-math.log(10000.0) / d_model))
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, dtype=torch.float32, device=device)
+            * (-math.log(10000.0) / d_model)
+        )
         pe = torch.zeros(1, num_t, 1, d_model, device=device)
         pe[0, :, 0, 0::2] = torch.sin(position * div_term)
         pe[0, :, 0, 1::2] = torch.cos(position * div_term)
@@ -1041,8 +1167,8 @@ class AlphaQubitV2_BB(nn.Module):
             logical = torch.as_tensor(code.lz, dtype=torch.float32)  # [K, 2lm]
         else:
             logical = torch.as_tensor(logical_representatives, dtype=torch.float32)
-        hz = torch.as_tensor(code.hz, dtype=torch.float32)       # [lm, 2lm]
-        hx = torch.as_tensor(code.hx, dtype=torch.float32)       # [lm, 2lm]
+        hz = torch.as_tensor(code.hz, dtype=torch.float32)  # [lm, 2lm]
+        hx = torch.as_tensor(code.hx, dtype=torch.float32)  # [lm, 2lm]
 
         z_overlap = logical @ hz.t()
         x_overlap = logical @ hx.t()
@@ -1059,8 +1185,9 @@ class AlphaQubitV2_BB(nn.Module):
         std = bias.std(dim=1, keepdim=True, unbiased=False).clamp_min(1e-6)
         return bias / std
 
-    def _embed_stabs(self, det_raw, gather_idx, valid_mask, neighbors_same,
-                     hint_neighbors, num_spatial):
+    def _embed_stabs(
+        self, det_raw, gather_idx, valid_mask, neighbors_same, hint_neighbors, num_spatial
+    ):
         """
         Build per-stab embedding for one type (Z or X).
 
@@ -1075,34 +1202,43 @@ class AlphaQubitV2_BB(nn.Module):
         device = det_raw.device
 
         # Gather this-type detection events at every (t, spatial) slot
-        X_3d = det_raw.gather(1, gather_idx.unsqueeze(0).expand(B, -1)).view(B, self.num_t, num_spatial)
+        X_3d = det_raw.gather(1, gather_idx.unsqueeze(0).expand(B, -1)).view(
+            B, self.num_t, num_spatial
+        )
         X_3d = (X_3d * valid_mask).long()
 
         # --- spatial idx: center + K_same same-type neighbors ---
         # Advanced indexing: X_sp[:, :, neighbors_same] gives [B, num_t, num_spatial, K_same].
         X_sp = F.pad(X_3d, (0, 1), value=0)  # trailing padded slot (not actually indexed on torus)
         N_vals = X_sp[:, :, neighbors_same]
-        idx_space = X_3d * (2 ** self.K_same)
+        idx_space = X_3d * (2**self.K_same)
         for k in range(self.K_same):
             idx_space = idx_space + N_vals[..., k] * (2 ** (self.K_same - 1 - k))
 
         # --- temporal idx: T_prev * 2 + T_curr ---
         X_t = F.pad(X_3d, (0, 0, 1, 0), value=0)
-        T_prev = X_t[:, 0:self.num_t, :]
+        T_prev = X_t[:, 0 : self.num_t, :]
         idx_temp = T_prev * 2 + X_3d
 
         # --- cross-type hint idx ---
         # hint_neighbors values are in [0, total_detectors], where total_detectors = padding.
         det_raw_padded = F.pad(det_raw, (0, 1), value=0.0)
-        X_hints = det_raw_padded.gather(
-            1, hint_neighbors.view(-1).unsqueeze(0).expand(B, -1)
-        ).view(B, self.num_t, num_spatial, self.K_cross).long()
+        X_hints = (
+            det_raw_padded.gather(1, hint_neighbors.view(-1).unsqueeze(0).expand(B, -1))
+            .view(B, self.num_t, num_spatial, self.K_cross)
+            .long()
+        )
         idx_hint = torch.zeros_like(X_hints[..., 0])
         for k in range(self.K_cross):
             idx_hint = idx_hint + X_hints[..., k] * (2 ** (self.K_cross - 1 - k))
 
         emb_time = self._time_sinusoidal(self.num_t, self.d_model, device)
-        emb = self.emb_space(idx_space) + self.emb_temp(idx_temp) + self.emb_x_hints(idx_hint) + emb_time
+        emb = (
+            self.emb_space(idx_space)
+            + self.emb_temp(idx_temp)
+            + self.emb_x_hints(idx_hint)
+            + emb_time
+        )
         emb = emb + self.stem_resnet(self.stem_norm(emb))
         return emb  # [B, num_t, num_spatial, d_model]
 
@@ -1112,24 +1248,30 @@ class AlphaQubitV2_BB(nn.Module):
         device = x.device
 
         emb_z = self._embed_stabs(
-            x, gather_idx=self.gather_z, valid_mask=self.valid_z,
-            neighbors_same=self.z_neighbors, hint_neighbors=self.z_hint_neighbors,
+            x,
+            gather_idx=self.gather_z,
+            valid_mask=self.valid_z,
+            neighbors_same=self.z_neighbors,
+            hint_neighbors=self.z_hint_neighbors,
             num_spatial=self.num_z,
         )
         emb_x = self._embed_stabs(
-            x, gather_idx=self.gather_x, valid_mask=self.valid_x,
-            neighbors_same=self.x_neighbors, hint_neighbors=self.x_hint_neighbors,
+            x,
+            gather_idx=self.gather_x,
+            valid_mask=self.valid_x,
+            neighbors_same=self.x_neighbors,
+            hint_neighbors=self.x_hint_neighbors,
             num_spatial=self.num_x,
         )
         emb_z = emb_z + self.type_emb[0]
         emb_x = emb_x + self.type_emb[1]
         emb = torch.cat([emb_z, emb_x], dim=2)  # [B, num_t, num_stab, D]
 
-
         folded_trig = self._folded_relative_trig(device)
 
-        rnn_states = [torch.zeros(B, self.num_stab, self.d_model, device=device)
-                      for _ in range(self.n_rnn)]
+        rnn_states = [
+            torch.zeros(B, self.num_stab, self.d_model, device=device) for _ in range(self.n_rnn)
+        ]
 
         for t in range(self.num_t):
             curr = emb[:, t]
@@ -1227,10 +1369,14 @@ class AlphaQubitV2_BB(nn.Module):
         pooled = feat.mean(dim=1, keepdim=True)
         q = pooled.expand(-1, self.n_logicals, -1) + self.logical_query_embed.expand(B, -1, -1)
         anchor_logits = self.logical_anchor_attn_scale * self.logical_readout_bias
-        anchor_weights = torch.softmax(anchor_logits.to(device=feat.device, dtype=feat.dtype), dim=-1)
-        anchor_context = torch.einsum('kn,bnd->bkd', anchor_weights, feat)
+        anchor_weights = torch.softmax(
+            anchor_logits.to(device=feat.device, dtype=feat.dtype), dim=-1
+        )
+        anchor_context = torch.einsum("kn,bnd->bkd", anchor_weights, feat)
         anchor_context = self.logical_anchor_norm(anchor_context)
-        q = q + self.logical_anchor_context_scale.to(dtype=q.dtype) * anchor_context.to(dtype=q.dtype)
+        q = q + self.logical_anchor_context_scale.to(dtype=q.dtype) * anchor_context.to(
+            dtype=q.dtype
+        )
         return q, anchor_logits
 
     def _readout_features(self, feat, B):
@@ -1240,20 +1386,20 @@ class AlphaQubitV2_BB(nn.Module):
             q = layer(q, feat, padding_mask=None, attn_mask=anchor_logits)
         q = q + self.res_dense1(q)
         q = q + self.res_dense2(q)
-        q_normed = self.head_norm(q)     # [B, K, D]
+        q_normed = self.head_norm(q)  # [B, K, D]
         return q_normed
 
     def _readout(self, feat, B):
         """Return logical logits from stabilizer features."""
         q_normed = self._readout_features(feat, B)
         # Per-logical linear head: logit[b, k] = q_normed[b, k, :] dot head_weight[k, :] + bias[k]
-        return torch.einsum('bkd,kd->bk', q_normed, self.head_weight) + self.head_bias
-
+        return torch.einsum("bkd,kd->bk", q_normed, self.head_weight) + self.head_bias
 
 
 # ============================================================================
 # Transformer training
 # ============================================================================
+
 
 def build_anchor_representatives(mapper, logical_basis, mode: str):
     """Return the logical vectors used only for the static readout anchor."""
@@ -1268,8 +1414,11 @@ def build_anchor_representatives(mapper, logical_basis, mode: str):
 
 # ---- OOM-aware batch-size probe ----
 def _is_oom(exc: BaseException) -> bool:
-    if hasattr(torch, "cuda") and hasattr(torch.cuda, "OutOfMemoryError") \
-            and isinstance(exc, torch.cuda.OutOfMemoryError):
+    if (
+        hasattr(torch, "cuda")
+        and hasattr(torch.cuda, "OutOfMemoryError")
+        and isinstance(exc, torch.cuda.OutOfMemoryError)
+    ):
         return True
     return isinstance(exc, RuntimeError) and "out of memory" in str(exc).lower()
 
@@ -1281,10 +1430,14 @@ def probe_max_bs(args, mapper, n_logicals, device, rank, logical_representatives
     while bs >= 1:
         torch.cuda.empty_cache()
         try:
-            m = AlphaQubitV2_BB(mapper, n_logicals=n_logicals,
-                                d_model=args.d_model, n_heads=args.n_heads,
-                                rope_delta_mode=args.rope_delta_mode,
-                                logical_representatives=logical_representatives).to(device)
+            m = AlphaQubitV2_BB(
+                mapper,
+                n_logicals=n_logicals,
+                d_model=args.d_model,
+                n_heads=args.n_heads,
+                rope_delta_mode=args.rope_delta_mode,
+                logical_representatives=logical_representatives,
+            ).to(device)
             m.train()
             x = torch.randint(0, 2, (bs, total_det), device=device, dtype=torch.float32)
             y = torch.randint(0, 2, (bs, n_logicals), device=device, dtype=torch.float32)
@@ -1329,13 +1482,12 @@ def cleanup_ddp():
 # ---- Dataset ----
 class OnlineBBDataset(IterableDataset):
     """Generate online BB detector samples with independent worker seeds."""
-    def __init__(self, l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows,
-                 rounds, p, batch_size, rank=0):
+
+    def __init__(self, l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows, rounds, p, batch_size, rank=0):
         super().__init__()
         self.rank = rank
         self.batch_size = batch_size
-        self.mapper = BBMapper(l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows,
-                               rounds=rounds, p=p)
+        self.mapper = BBMapper(l, m, A_x_pows, A_y_pows, B_x_pows, B_y_pows, rounds=rounds, p=p)
         self.circuit = self.mapper.circuit
         self.n_logicals = self.mapper.code.K
         self.logical_basis = None
@@ -1378,10 +1530,12 @@ def build_param_groups(m):
     for use_decay, params in groups.items():
         if not params:
             continue
-        param_groups.append({
-            "params": params,
-            "weight_decay": 1e-2 if use_decay else 0.0,
-        })
+        param_groups.append(
+            {
+                "params": params,
+                "weight_decay": 1e-2 if use_decay else 0.0,
+            }
+        )
     return param_groups
 
 
@@ -1393,7 +1547,9 @@ def lr_factor(step: int, warmup: int, max_steps: int) -> float:
 
 
 def set_optimizer_lr(optimizer, args, step: int):
-    schedule_steps = args.lr_schedule_steps if args.lr_schedule_steps is not None else args.max_steps
+    schedule_steps = (
+        args.lr_schedule_steps if args.lr_schedule_steps is not None else args.max_steps
+    )
     factor = lr_factor(step, args.warmup, schedule_steps)
     for group in optimizer.param_groups:
         group["lr"] = args.lr * factor
@@ -1422,7 +1578,11 @@ def validate(model, loader, device, target_samples, world_size):
             pred = (logits > 0).float()
             match = (pred == y).float()
             correct_all += float(match.all(dim=1).sum().item())
-            per_logical_correct = match.sum(dim=0) if per_logical_correct is None else per_logical_correct + match.sum(dim=0)
+            per_logical_correct = (
+                match.sum(dim=0)
+                if per_logical_correct is None
+                else per_logical_correct + match.sum(dim=0)
+            )
             total += x.size(0)
             if total >= target_per_rank:
                 break
@@ -1445,10 +1605,14 @@ def run_training(args):
         os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
 
     ds_kwargs = dict(
-        l=args.l, m=args.m,
-        A_x_pows=args.A_x, A_y_pows=args.A_y,
-        B_x_pows=args.B_x, B_y_pows=args.B_y,
-        rounds=args.rounds, p=args.p,
+        l=args.l,
+        m=args.m,
+        A_x_pows=args.A_x,
+        A_y_pows=args.A_y,
+        B_x_pows=args.B_x,
+        B_y_pows=args.B_y,
+        rounds=args.rounds,
+        p=args.p,
         rank=rank,
     )
     train_ds = OnlineBBDataset(batch_size=args.batch_size, **ds_kwargs)
@@ -1470,8 +1634,7 @@ def run_training(args):
 
     probed_bs = args.batch_size
     if not args.skip_oom_probe and rank == 0:
-        probed_bs = probe_max_bs(args, mapper, n_logicals, device, rank,
-                                 anchor_representatives)
+        probed_bs = probe_max_bs(args, mapper, n_logicals, device, rank, anchor_representatives)
     if dist.is_initialized():
         bs_t = torch.tensor([probed_bs], device=device, dtype=torch.long)
         dist.broadcast(bs_t, src=0)
@@ -1481,14 +1644,19 @@ def run_training(args):
     val_ds.batch_size = args.batch_size
 
     worker_per_gpu = max(4, 32 // max(world_size, 1))
-    train_loader = DataLoader(train_ds, batch_size=None, num_workers=worker_per_gpu,
-                              pin_memory=True, prefetch_factor=2)
+    train_loader = DataLoader(
+        train_ds, batch_size=None, num_workers=worker_per_gpu, pin_memory=True, prefetch_factor=2
+    )
     val_loader = DataLoader(val_ds, batch_size=None, num_workers=2, pin_memory=True)
 
-    model = AlphaQubitV2_BB(mapper, n_logicals=n_logicals,
-                            d_model=args.d_model, n_heads=args.n_heads,
-                            rope_delta_mode=args.rope_delta_mode,
-                            logical_representatives=anchor_representatives).to(device)
+    model = AlphaQubitV2_BB(
+        mapper,
+        n_logicals=n_logicals,
+        d_model=args.d_model,
+        n_heads=args.n_heads,
+        rope_delta_mode=args.rope_delta_mode,
+        logical_representatives=anchor_representatives,
+    ).to(device)
     if rank == 0:
         n_p = sum(p.numel() for p in model.parameters())
         print(f"    model params: {n_p/1e6:.2f}M")
@@ -1497,12 +1665,14 @@ def run_training(args):
         if rank == 0:
             print(f"--> Loading checkpoint: {args.resume}")
         ckpt = torch.load(args.resume, map_location=device)
-        sd = ckpt.get('model_state', ckpt)
+        sd = ckpt.get("model_state", ckpt)
         sd = {k.replace("_orig_mod.", "").replace("module.", ""): v for k, v in sd.items()}
         model_sd = model.state_dict()
         filtered = {
-            k: v for k, v in sd.items()
-            if k in model_sd and tuple(model_sd[k].shape) == tuple(v.shape)
+            k: v
+            for k, v in sd.items()
+            if k in model_sd
+            and tuple(model_sd[k].shape) == tuple(v.shape)
             and k != "logical_readout_bias"
         }
         missing, unexpected = model.load_state_dict(filtered, strict=False)
@@ -1525,7 +1695,9 @@ def run_training(args):
 
     ACCUM = max(1, args.target_bs // (args.batch_size * max(world_size, 1)))
     if rank == 0:
-        print(f"    target_bs={args.target_bs} micro_bs={args.batch_size} world={world_size} accum={ACCUM}")
+        print(
+            f"    target_bs={args.target_bs} micro_bs={args.batch_size} world={world_size} accum={ACCUM}"
+        )
 
     iterator = iter(train_loader)
     update_step = 0
@@ -1546,8 +1718,11 @@ def run_training(args):
                 x, y = next(iterator)
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
-            my_ctx = (model.no_sync() if (dist.is_initialized() and mi < ACCUM - 1)
-                      else contextlib.nullcontext())
+            my_ctx = (
+                model.no_sync()
+                if (dist.is_initialized() and mi < ACCUM - 1)
+                else contextlib.nullcontext()
+            )
             with my_ctx:
                 with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                     logits = model(x)
@@ -1556,7 +1731,9 @@ def run_training(args):
                 running_loss += float(loss.detach()) * ACCUM
 
         grad_norm_val = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        grad_norm_val = float(grad_norm_val) if not isinstance(grad_norm_val, float) else grad_norm_val
+        grad_norm_val = (
+            float(grad_norm_val) if not isinstance(grad_norm_val, float) else grad_norm_val
+        )
         optimizer.step()
 
         if update_step % args.eval_every == 0:
@@ -1580,40 +1757,262 @@ def run_training(args):
                 dt = now - t_last if update_step > 0 else 0.0
                 steps_per_sec = args.eval_every / max(dt, 1e-6) if update_step > 0 else 0.0
                 t_last = now
-                print(f"[{time.strftime('%H:%M:%S')}] step {update_step:6d} | lr {lr:.2e} | "
-                      f"loss {avg_loss:.4f} | block {block_acc*100:6.3f}% | "
-                      f"per-log mean {per_log_mean*100:6.3f}% worst {per_log_worst*100:6.3f}% | "
-                      f"rate {steps_per_sec:.2f} step/s | elapsed {(now-t_start)/60:.1f}min | "
-                      f"eval {eval_sec:.1f}s | grad_norm {grad_norm_val:.4f}", flush=True)
-                print(f"           PER_LOG_ACC % | {_format_float_list(per_logical, scale=100.0, digits=1)}", flush=True)
+                print(
+                    f"[{time.strftime('%H:%M:%S')}] step {update_step:6d} | lr {lr:.2e} | "
+                    f"loss {avg_loss:.4f} | block {block_acc*100:6.3f}% | "
+                    f"per-log mean {per_log_mean*100:6.3f}% worst {per_log_worst*100:6.3f}% | "
+                    f"rate {steps_per_sec:.2f} step/s | elapsed {(now-t_start)/60:.1f}min | "
+                    f"eval {eval_sec:.1f}s | grad_norm {grad_norm_val:.4f}",
+                    flush=True,
+                )
+                print(
+                    f"           PER_LOG_ACC % | {_format_float_list(per_logical, scale=100.0, digits=1)}",
+                    flush=True,
+                )
 
                 if not args.no_save:
                     state = (model.module if dist.is_initialized() else model).state_dict()
-                    meta = {'name': 'bb_default', 'logical_anchor_mode': args.logical_anchor_mode}
-                    torch.save({'model_state': state, 'step': update_step,
-                                'block_acc': float(block_acc),
-                                'per_log_mean': float(per_log_mean),
-                                'output_convention': meta}, args.output)
-                    if args.save_every > 0 and update_step > 0 and update_step % args.save_every == 0:
+                    meta = {"name": "bb_default", "logical_anchor_mode": args.logical_anchor_mode}
+                    torch.save(
+                        {
+                            "model_state": state,
+                            "step": update_step,
+                            "block_acc": float(block_acc),
+                            "per_log_mean": float(per_log_mean),
+                            "output_convention": meta,
+                        },
+                        args.output,
+                    )
+                    if (
+                        args.save_every > 0
+                        and update_step > 0
+                        and update_step % args.save_every == 0
+                    ):
                         step_path = args.output.replace(".pt", f"_step{update_step:06d}.pt")
-                        torch.save({'model_state': state, 'step': update_step,
-                                    'block_acc': float(block_acc),
-                                    'per_log_mean': float(per_log_mean),
-                                    'output_convention': meta}, step_path)
+                        torch.save(
+                            {
+                                "model_state": state,
+                                "step": update_step,
+                                "block_acc": float(block_acc),
+                                "per_log_mean": float(per_log_mean),
+                                "output_convention": meta,
+                            },
+                            step_path,
+                        )
                         print(f"  -> step checkpoint saved to {step_path}", flush=True)
                     if float(block_acc) > best_acc:
                         best_acc = float(block_acc)
                         best_path = args.output.replace(".pt", "_best.pt")
-                        torch.save({'model_state': state, 'step': update_step,
-                                    'block_acc': float(block_acc),
-                                    'per_log_mean': float(per_log_mean),
-                                    'best_metric': best_acc,
-                                    'output_convention': meta}, best_path)
-                        print(f"  -> new best block_acc {best_acc*100:.3f}% saved to {best_path}", flush=True)
+                        torch.save(
+                            {
+                                "model_state": state,
+                                "step": update_step,
+                                "block_acc": float(block_acc),
+                                "per_log_mean": float(per_log_mean),
+                                "best_metric": best_acc,
+                                "output_convention": meta,
+                            },
+                            best_path,
+                        )
+                        print(
+                            f"  -> new best block_acc {best_acc*100:.3f}% saved to {best_path}",
+                            flush=True,
+                        )
 
         update_step += 1
 
     cleanup_ddp()
+
+
+# ============================================================================
+# Standalone evaluation (no DDP required)
+# ============================================================================
+
+
+def run_eval(args):
+    """Evaluate a pre-trained BB Transformer decoder on a single GPU.
+
+    Loads a checkpoint (from a local path or downloaded from the Hugging Face
+    Hub), constructs the matching bivariate-bicycle code, and computes the
+    block accuracy and logical error rate over the requested number of samples.
+
+    Args:
+        args: Parsed command-line arguments with attributes:
+            l, m, A_x, A_y, B_x, B_y, rounds, p (code parameters),
+            d_model, n_heads, rope_delta_mode, logical_anchor_mode (model
+            parameters), ckpt_path, shots, batch_size.
+    """
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    block_size = args.l * args.m
+    print(
+        f"=== BB Transformer Evaluation | "
+        f"block_size={block_size} l={args.l} m={args.m} "
+        f"rounds={args.rounds} p={args.p} ==="
+    )
+    print(f"    device={device}  shots={args.shots}  batch_size={args.batch_size}")
+
+    # Build mapper and logical basis (must match the checkpoint's output convention).
+    mapper = BBMapper(
+        args.l,
+        args.m,
+        args.A_x,
+        args.A_y,
+        args.B_x,
+        args.B_y,
+        rounds=args.rounds,
+        p=args.p,
+    )
+    logical_basis = build_default_observables(mapper)
+    n_logicals = mapper.code.K
+    anchor_reps = build_anchor_representatives(
+        mapper,
+        logical_basis,
+        args.logical_anchor_mode,
+    )
+
+    info = mapper.mapping_info
+    print(
+        f"    num_stab={info.lm * 2}  num_t={info.num_t}  "
+        f"total_det={info.total_detectors}  n_logicals={n_logicals}"
+    )
+
+    # Instantiate the model.
+    model = AlphaQubitV2_BB(
+        mapper,
+        n_logicals=n_logicals,
+        d_model=args.d_model,
+        n_heads=args.n_heads,
+        rope_delta_mode=args.rope_delta_mode,
+        logical_representatives=anchor_reps,
+    ).to(device)
+
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"    model params: {n_params / 1e6:.2f}M")
+
+    # Load checkpoint.
+    print(f"    loading checkpoint: {args.ckpt_path}")
+    ckpt = torch.load(args.ckpt_path, map_location=device)
+    sd = ckpt.get("model_state", ckpt)
+    sd = {k.replace("_orig_mod.", "").replace("module.", ""): v for k, v in sd.items()}
+    model_sd = model.state_dict()
+    filtered = {
+        k: v
+        for k, v in sd.items()
+        if k in model_sd
+        and tuple(model_sd[k].shape) == tuple(v.shape)
+        and k != "logical_readout_bias"
+    }
+    missing, unexpected = model.load_state_dict(filtered, strict=False)
+    print(
+        f"    transferred {len(filtered)} tensors "
+        f"(missing={len(missing)}, unexpected={len(unexpected)})"
+    )
+
+    # Print checkpoint metadata if available.
+    if "step" in ckpt:
+        print(f"    checkpoint step: {ckpt['step']}")
+    if "block_acc" in ckpt:
+        print(f"    checkpoint block_acc: {ckpt['block_acc'] * 100:.3f}%")
+    output_conv = ckpt.get("output_convention", {})
+    if output_conv:
+        print(f"    output convention: {output_conv}")
+
+    model.eval()
+
+    # Build the evaluation dataset with the same logical basis as training.
+    ds = OnlineBBDataset(
+        l=args.l,
+        m=args.m,
+        A_x_pows=args.A_x,
+        A_y_pows=args.A_y,
+        B_x_pows=args.B_x,
+        B_y_pows=args.B_y,
+        rounds=args.rounds,
+        p=args.p,
+        batch_size=args.batch_size,
+    )
+    ds.set_logical_basis(logical_basis)
+    loader = DataLoader(ds, batch_size=None, num_workers=2, pin_memory=True)
+
+    # Inference loop.
+    correct_all = 0.0
+    total = 0
+    per_logical_correct = None
+    t_start = time.time()
+    print_step = max(args.shots // 10, 1) if args.shots >= 10 else 1
+
+    with torch.no_grad():
+        for x, y in loader:
+            if total >= args.shots:
+                break
+            current_n = min(x.shape[0], args.shots - total)
+            x_gpu = x[:current_n].to(device, non_blocking=True)
+            y_gpu = y[:current_n].to(device, non_blocking=True)
+
+            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+                logits = model(x_gpu).float()
+            pred = (logits > 0).float()
+            match = (pred == y_gpu).float()
+
+            correct_all += float(match.all(dim=1).sum().item())
+            per_logical_correct = (
+                match.sum(dim=0)
+                if per_logical_correct is None
+                else per_logical_correct + match.sum(dim=0)
+            )
+            total += current_n
+
+            if total % print_step < args.batch_size or total >= args.shots:
+                pct = total / args.shots * 100
+                cur_acc = correct_all / total * 100 if total > 0 else 0.0
+                elapsed = time.time() - t_start
+                rate = total / max(elapsed, 1e-6)
+                print(
+                    f"    [{total}/{args.shots} samples | {pct:.1f}%]  "
+                    f"block_acc={cur_acc:.3f}%  "
+                    f"rate={rate:.0f} samp/s"
+                )
+
+    # Compute final metrics.
+    block_acc = correct_all / max(total, 1)
+    ler = 1.0 - block_acc
+    per_log_mean = (
+        float(per_logical_correct.mean() / max(total, 1))
+        if per_logical_correct is not None
+        else float("nan")
+    )
+    per_log_worst = (
+        float(per_logical_correct.min() / max(total, 1))
+        if per_logical_correct is not None
+        else float("nan")
+    )
+
+    elapsed = time.time() - t_start
+    print(f"    === Results ===")
+    print(f"    total_samples: {total}")
+    print(f"    block_acc:     {block_acc * 100:.6f}%")
+    print(f"    LER:           {ler:.6e}")
+    print(f"    per_log_mean:  {per_log_mean * 100:.3f}%")
+    print(f"    per_log_worst: {per_log_worst * 100:.3f}%")
+    print(f"    elapsed:       {elapsed:.1f}s  rate: {total / max(elapsed, 1e-6):.0f} samp/s")
+
+    # Write CSV results.
+    csv_file = f"bb{block_size}_transformer_eval_r{args.rounds}_p{args.p}.csv"
+    if not os.path.exists(csv_file):
+        with open(csv_file, "w") as f:
+            f.write(
+                "block_size,rounds,p,total_samples,correct,errors,block_acc,ler,per_log_mean,per_log_worst\n"
+            )
+    with open(csv_file, "a") as f:
+        errors = total - int(correct_all)
+        f.write(
+            f"{block_size},{args.rounds},{args.p},"
+            f"{total},{int(correct_all)},{errors},"
+            f"{block_acc:.8f},{ler:.8f},"
+            f"{per_log_mean:.8f},{per_log_worst:.8f}\n"
+        )
+    print(f"    Results saved to {csv_file}")
+
 
 def main_train_transformer():
 
@@ -1632,49 +2031,164 @@ def main_train_transformer():
     # Model
     parser.add_argument("--d_model", type=int, default=512)
     parser.add_argument("--n_heads", type=int, default=8)
-    parser.add_argument("--rope_delta_mode", type=str, default="signed_neg_half",
-                        choices=["signed_neg_half", "signed_pos_half", "raw_mod"],
-                        help="Spatial RoPE pairwise delta representative.")
-    parser.add_argument("--logical_anchor_mode", type=str, default="representative",
-                        choices=["representative", "base_transform"],
-                        help=("Which logical vectors define the static readout anchor. "
-                              "representative uses T@lz+C@H_Z; base_transform uses T@lz."))
-    parser.add_argument("--compile", action="store_true",
-                        help="Use torch.compile for the SignedWrapRoPE model.")
-    parser.add_argument("--compile_mode", type=str, default="reduce-overhead",
-                        choices=["default", "reduce-overhead", "max-autotune"],
-                        help="torch.compile mode.")
+    parser.add_argument(
+        "--rope_delta_mode",
+        type=str,
+        default="signed_neg_half",
+        choices=["signed_neg_half", "signed_pos_half", "raw_mod"],
+        help="Spatial RoPE pairwise delta representative.",
+    )
+    parser.add_argument(
+        "--logical_anchor_mode",
+        type=str,
+        default="representative",
+        choices=["representative", "base_transform"],
+        help=(
+            "Which logical vectors define the static readout anchor. "
+            "representative uses T@lz+C@H_Z; base_transform uses T@lz."
+        ),
+    )
+    parser.add_argument(
+        "--compile", action="store_true", help="Use torch.compile for the SignedWrapRoPE model."
+    )
+    parser.add_argument(
+        "--compile_mode",
+        type=str,
+        default="reduce-overhead",
+        choices=["default", "reduce-overhead", "max-autotune"],
+        help="torch.compile mode.",
+    )
     # Training
-    parser.add_argument("--batch_size", type=int, default=64,
-                        help="per-GPU micro-batch size")
-    parser.add_argument("--target_bs", type=int, default=2048,
-                        help="effective total batch = target_bs across all GPUs")
+    parser.add_argument("--batch_size", type=int, default=64, help="per-GPU micro-batch size")
+    parser.add_argument(
+        "--target_bs",
+        type=int,
+        default=2048,
+        help="effective total batch = target_bs across all GPUs",
+    )
     parser.add_argument("--max_steps", type=int, default=50000)
-    parser.add_argument("--lr_schedule_steps", type=int, default=None,
-                        help="Use this many steps for warmup/cosine LR decay; defaults to --max_steps.")
+    parser.add_argument(
+        "--lr_schedule_steps",
+        type=int,
+        default=None,
+        help="Use this many steps for warmup/cosine LR decay; defaults to --max_steps.",
+    )
     parser.add_argument("--eval_every", type=int, default=500)
     parser.add_argument("--eval_samples", type=int, default=50000)
     parser.add_argument("--lr", type=float, default=5e-5)
-    parser.add_argument("--warmup", type=int, default=200,
-                        help="LR warmup steps.")
-    parser.add_argument("--skip_oom_probe", action="store_true",
-                        help="Skip startup OOM probe when the requested batch size is known to fit.")
+    parser.add_argument("--warmup", type=int, default=200, help="LR warmup steps.")
+    parser.add_argument(
+        "--skip_oom_probe",
+        action="store_true",
+        help="Skip startup OOM probe when the requested batch size is known to fit.",
+    )
     # IO
     parser.add_argument("--output", type=str, required=True)
     parser.add_argument("--resume", type=str, default="")
-    parser.add_argument("--no_save", action="store_true",
-                        help="Disable checkpoint writes.")
-    parser.add_argument("--save_every", type=int, default=0,
-                        help="Also save *_stepXXXXXX.pt at validation steps divisible by this value.")
+    parser.add_argument("--no_save", action="store_true", help="Disable checkpoint writes.")
+    parser.add_argument(
+        "--save_every",
+        type=int,
+        default=0,
+        help="Also save *_stepXXXXXX.pt at validation steps divisible by this value.",
+    )
     args = parser.parse_args()
     run_training(args)
 
 
+def main_eval_transformer():
+    """Parse command-line arguments and launch BB Transformer evaluation.
+
+    Supports downloading the checkpoint from the Hugging Face Hub or loading
+    from a local path.
+    """
+    parser = argparse.ArgumentParser(description="Evaluate a pre-trained BB Transformer decoder.")
+    # Code parameters (must match the checkpoint).
+    parser.add_argument(
+        "--torus_l",
+        type=int,
+        default=6,
+        dest="l",
+        help="Torus row dimension (default: 6 for BB72).",
+    )
+    parser.add_argument(
+        "--torus_m",
+        type=int,
+        default=6,
+        dest="m",
+        help="Torus column dimension (default: 6 for BB72).",
+    )
+    parser.add_argument("--A_x", type=int, nargs="+", default=[3])
+    parser.add_argument("--A_y", type=int, nargs="+", default=[1, 2])
+    parser.add_argument("--B_x", type=int, nargs="+", default=[1, 2])
+    parser.add_argument("--B_y", type=int, nargs="+", default=[3])
+    parser.add_argument(
+        "--rounds", type=int, default=6, help="Number of syndrome extraction rounds."
+    )
+    parser.add_argument(
+        "--p", type=float, default=0.005, help="Physical error rate for evaluation."
+    )
+    # Model hyper-parameters.
+    parser.add_argument("--d_model", type=int, default=512)
+    parser.add_argument("--n_heads", type=int, default=8)
+    parser.add_argument(
+        "--rope_delta_mode",
+        type=str,
+        default="signed_neg_half",
+        choices=["signed_neg_half", "signed_pos_half", "raw_mod"],
+    )
+    parser.add_argument(
+        "--logical_anchor_mode",
+        type=str,
+        default="representative",
+        choices=["representative", "base_transform"],
+    )
+    # Evaluation parameters.
+    parser.add_argument(
+        "--ckpt_path", type=str, default="", help="Local path to the checkpoint (.pt file)."
+    )
+    parser.add_argument(
+        "--hf_repo",
+        type=str,
+        default="",
+        help="Hugging Face Hub repository ID (e.g. " "Dreamworldsmile/ntu-surface-code-decoder).",
+    )
+    parser.add_argument(
+        "--hf_filename",
+        type=str,
+        default="",
+        help="File path within the Hugging Face Hub repository "
+        "(default: bb/bb{l*m}_transformer.pt).",
+    )
+    parser.add_argument("--shots", type=int, required=True, help="Number of evaluation samples.")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size for inference.")
+    args = parser.parse_args()
+
+    # Resolve checkpoint path from the Hugging Face Hub if requested.
+    if args.hf_repo and not args.ckpt_path:
+        block_size = args.l * args.m
+        hf_filename = args.hf_filename or f"bb/bb{block_size}_transformer.pt"
+        print(f"Downloading from Hugging Face Hub: {args.hf_repo}/{hf_filename}")
+        args.ckpt_path = download_from_hf(args.hf_repo, hf_filename)
+
+    if not args.ckpt_path:
+        parser.error("Either --ckpt_path or --hf_repo must be provided.")
+    if not os.path.exists(args.ckpt_path):
+        parser.error(f"Checkpoint not found: {args.ckpt_path}")
+
+    run_eval(args)
+
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "train":
-        sys.argv.pop(1)
-    main_train_transformer()
+    """Dispatch to the appropriate sub-command (train or eval)."""
+    if len(sys.argv) > 1 and sys.argv[1] in {"train", "eval"}:
+        command = sys.argv.pop(1)
+    else:
+        command = "train"
+    if command == "train":
+        main_train_transformer()
+    elif command == "eval":
+        main_eval_transformer()
 
 
 if __name__ == "__main__":

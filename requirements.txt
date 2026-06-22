@@ -1,0 +1,33 @@
+# =============================================================================
+# NTU Decoder — Python dependencies
+# =============================================================================
+#
+# Quick start:
+#   1. Install PyTorch from https://pytorch.org/get-started/locally/
+#   2. pip install -r requirements.txt
+#
+# Optional dependencies (uncomment before installing):
+#   ldpc       — BP-OSD baseline for BB codes
+#   relay_bp   — Relay BP baseline for BB codes
+# =============================================================================
+
+# --- Core scientific computing ------------------------------------------------
+numpy>=1.24
+scipy>=1.10
+stim>=1.13
+
+# --- Surface code baselines ---------------------------------------------------
+pymatching>=2.1
+
+# --- Hugging Face Hub (model download) ----------------------------------------
+huggingface_hub>=0.20
+
+# --- BB Neural-BP decoder (GNN-based) -----------------------------------------
+# Must be installed AFTER PyTorch.
+# See: https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
+torch_geometric>=2.5
+torch_scatter>=2.1
+
+# --- BB classical baselines (optional) ----------------------------------------
+# ldpc
+# relay_bp
