@@ -18,6 +18,25 @@ from dataclasses import dataclass
 
 import numpy as np
 import pymatching
+
+
+def download_from_hf(repo_id: str, filename: str, cache_dir: str | None = None) -> str:
+    """Download a checkpoint from Hugging Face Hub and return the local path.
+
+    Args:
+        repo_id: Hugging Face repository ID (e.g. ``user/model-name``).
+        filename: File path within the repository (e.g. ``surface/d7.pth``).
+        cache_dir: Optional custom cache directory. Defaults to
+            ``~/.cache/huggingface/hub/``.
+
+    Returns:
+        Absolute path to the downloaded file on local disk.
+    """
+    from huggingface_hub import hf_hub_download
+
+    return hf_hub_download(repo_id=repo_id, filename=filename, cache_dir=cache_dir)
+
+
 import stim
 import torch
 import torch.distributed as dist
@@ -134,15 +153,11 @@ class FullMapper(nn.Module):
         self.register_buffer("gather_z", self.mapping_info.gather_z)
         self.register_buffer("valid_z", self.mapping_info.valid_z)
         self.register_buffer("z_neighbors", self.mapping_info.z_neighbors)
-        self.register_buffer(
-            "z_hint_neighbors", self.mapping_info.z_hint_neighbors
-        )
+        self.register_buffer("z_hint_neighbors", self.mapping_info.z_hint_neighbors)
         self.register_buffer("gather_x", self.mapping_info.gather_x)
         self.register_buffer("valid_x", self.mapping_info.valid_x)
         self.register_buffer("x_neighbors", self.mapping_info.x_neighbors)
-        self.register_buffer(
-            "x_hint_neighbors", self.mapping_info.x_hint_neighbors
-        )
+        self.register_buffer("x_hint_neighbors", self.mapping_info.x_hint_neighbors)
 
     def _build_full_mapping(self) -> FullMappingInfo:
         """Construct the complete joint X+Z mapping from detector coordinates.
@@ -238,18 +253,14 @@ class FullMapper(nn.Module):
                     valid_x[t_idx, x_idx] = 1.0
 
         # 5. Z diagonal Z neighbors (for spatial embedding).
-        z_neighbors = torch.full(
-            (num_z, 4), num_z, dtype=torch.long
-        )  # padding = num_z
+        z_neighbors = torch.full((num_z, 4), num_z, dtype=torch.long)  # padding = num_z
         for i, (r, c) in enumerate(z_locs):
             for j, (dr, dc) in enumerate([(-1, -1), (-1, 1), (1, -1), (1, 1)]):
                 if (r + dr, c + dc) in loc_to_idx_z:
                     z_neighbors[i, j] = loc_to_idx_z[(r + dr, c + dc)]
 
         # 6. X diagonal X neighbors (for spatial embedding).
-        x_neighbors = torch.full(
-            (num_x, 4), num_x, dtype=torch.long
-        )  # padding = num_x
+        x_neighbors = torch.full((num_x, 4), num_x, dtype=torch.long)  # padding = num_x
         for i, (r, c) in enumerate(x_locs):
             for j, (dr, dc) in enumerate([(-1, -1), (-1, 1), (1, -1), (1, 1)]):
                 if (r + dr, c + dc) in loc_to_idx_x:
@@ -454,11 +465,7 @@ class RMSNorm(nn.Module):
     def forward(self, x):
         return (
             self.weight
-            * x.to(torch.float32)
-            .pow(2)
-            .mean(-1, keepdim=True)
-            .add(self.eps)
-            .rsqrt()
+            * x.to(torch.float32).pow(2).mean(-1, keepdim=True).add(self.eps).rsqrt()
             * x
         )
 
@@ -585,9 +592,7 @@ class AQCrossAttentionLayer(nn.Module):
         super().__init__()
         self.norm_q = nn.LayerNorm(d_model)
         self.norm_kv = nn.LayerNorm(d_model)
-        self.cross_attn = nn.MultiheadAttention(
-            d_model, n_heads, batch_first=True
-        )
+        self.cross_attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
         self.norm_mlp = nn.LayerNorm(d_model)
         self.mlp = nn.Sequential(
             nn.Linear(d_model, 4 * d_model),
@@ -657,9 +662,7 @@ class AlphaQubitV2(nn.Module):
             mapper.mapping_info.valid_z.view(self.num_t, self.num_z),
         )
         self.register_buffer("z_neighbors", mapper.mapping_info.z_neighbors)
-        self.register_buffer(
-            "z_hint_neighbors", mapper.mapping_info.z_hint_neighbors
-        )
+        self.register_buffer("z_hint_neighbors", mapper.mapping_info.z_hint_neighbors)
         # X mapping.
         self.register_buffer("gather_x", mapper.mapping_info.gather_x)
         self.register_buffer(
@@ -667,9 +670,7 @@ class AlphaQubitV2(nn.Module):
             mapper.mapping_info.valid_x.view(self.num_t, self.num_x),
         )
         self.register_buffer("x_neighbors", mapper.mapping_info.x_neighbors)
-        self.register_buffer(
-            "x_hint_neighbors", mapper.mapping_info.x_hint_neighbors
-        )
+        self.register_buffer("x_hint_neighbors", mapper.mapping_info.x_hint_neighbors)
         # Spatial coordinates for RoPE.
         self.register_buffer(
             "spatial_coords",
@@ -699,16 +700,11 @@ class AlphaQubitV2(nn.Module):
 
         self.n_tf = 6
         self.tf_layers = nn.ModuleList(
-            [
-                SpatialTransformerBlock(d_model, n_heads)
-                for _ in range(self.n_tf)
-            ]
+            [SpatialTransformerBlock(d_model, n_heads) for _ in range(self.n_tf)]
         )
 
         # --- Readout ---
-        self.logical_query_embed = nn.Parameter(
-            torch.randn(1, 1, d_model) * 0.02
-        )
+        self.logical_query_embed = nn.Parameter(torch.randn(1, 1, d_model) * 0.02)
         self.readout_layers = nn.ModuleList(
             [AQCrossAttentionLayer(d_model, n_heads) for _ in range(2)]
         )
@@ -732,9 +728,7 @@ class AlphaQubitV2(nn.Module):
         Returns:
             Tensor [1, num_t, 1, d_model] of sinusoidal encodings.
         """
-        position = torch.arange(
-            num_t, dtype=torch.float32, device=device
-        ).unsqueeze(1)
+        position = torch.arange(num_t, dtype=torch.float32, device=device).unsqueeze(1)
         div_term = torch.exp(
             torch.arange(0, d_model, 2, dtype=torch.float32, device=device)
             * (-math.log(10000.0) / d_model)
@@ -931,9 +925,7 @@ class AlphaQubitV2(nn.Module):
 
             valid_z_t = self.valid_z[t, :]
             valid_x_t = self.valid_x[t, :]
-            valid_all_t = torch.cat(
-                [valid_z_t, valid_x_t], dim=0
-            )  # [num_stab]
+            valid_all_t = torch.cat([valid_z_t, valid_x_t], dim=0)  # [num_stab]
 
             padding_mask = (
                 (valid_all_t == 0).unsqueeze(0).expand(B, -1)
@@ -985,9 +977,7 @@ class OnlineSurfaceCodeDataset(IterableDataset):
         is_eval: If True, skip MWPM pseudo-label generation.
     """
 
-    def __init__(
-        self, d, rounds, p, batch_size, rank=0, world_size=1, is_eval=False
-    ):
+    def __init__(self, d, rounds, p, batch_size, rank=0, world_size=1, is_eval=False):
         self.d = d
         self.rounds = rounds
         self.p = p
@@ -1023,9 +1013,7 @@ class OnlineSurfaceCodeDataset(IterableDataset):
             keep_idx = []
             for t_val in self.unique_times:
                 current_idx = [
-                    idx
-                    for idx, (_, _, t) in coords.items()
-                    if math.isclose(t, t_val)
+                    idx for idx, (_, _, t) in coords.items() if math.isclose(t, t_val)
                 ]
                 keep_idx.extend(current_idx)
                 mask = np.zeros(len(coords), dtype=np.uint8)
@@ -1037,17 +1025,15 @@ class OnlineSurfaceCodeDataset(IterableDataset):
         worker_id = worker_info.id if worker_info else 0
         entropy = int.from_bytes(os.urandom(4), byteorder="little")
         time_ns = time.time_ns()
-        final_seed = (
-            time_ns + entropy + worker_id * 10000 + self.rank * 100000
-        ) % (2**32 - 1)
+        final_seed = (time_ns + entropy + worker_id * 10000 + self.rank * 100000) % (
+            2**32 - 1
+        )
         np.random.seed(final_seed)
         torch.manual_seed(final_seed)
         sampler = self.circuit.compile_detector_sampler(seed=final_seed)
 
         while True:
-            det, obs = sampler.sample(
-                self.batch_size, separate_observables=True
-            )
+            det, obs = sampler.sample(self.batch_size, separate_observables=True)
             x_tensor = torch.from_numpy(det).float()
             y_true_tensor = torch.from_numpy(obs).float()
 
@@ -1113,9 +1099,7 @@ def set_freeze_mode(model, mode="freeze_backbone", rank=0):
                 param.requires_grad = False
 
     if rank == 0:
-        trainable = sum(
-            p.numel() for p in model.parameters() if p.requires_grad
-        )
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total = sum(p.numel() for p in model.parameters())
         print(
             f"--> [Info] Trainable Params: {trainable / 1e6:.2f}M"
@@ -1173,8 +1157,7 @@ def run_training(args):
     device = torch.device(f"cuda:{local_rank}")
     if rank == 0:
         print(
-            f"\n=== ALPHA-QUBIT V2: d={args.d} | X+Z Joint |"
-            " RNN+TF Interleaved ==="
+            f"\n=== ALPHA-QUBIT V2: d={args.d} | X+Z Joint |" " RNN+TF Interleaved ==="
         )
 
     # Build mapper from a temporary dataset.
@@ -1256,6 +1239,19 @@ def run_training(args):
         print(f"    Total parameters: {total_params / 1e6:.2f}M")
 
     start_step = 0
+    # Resolve Hugging Face checkpoint if --hf_resume is provided.
+    if args.hf_resume and not args.resume:
+        parts = args.hf_resume.split("/")
+        if len(parts) >= 3:
+            repo_id = "/".join(parts[:2])
+            filename = "/".join(parts[2:])
+        else:
+            repo_id = args.hf_resume
+            filename = f"surface/d{args.d}.pth"
+        if rank == 0:
+            print(f"--> Downloading from HF: {repo_id}/{filename}")
+        args.resume = download_from_hf(repo_id, filename)
+
     saved_d = -1
     if args.resume and os.path.exists(args.resume):
         if rank == 0:
@@ -1329,9 +1325,7 @@ def run_training(args):
         model.load_state_dict(clean_state_dict, strict=False)
 
     if dist.is_initialized():
-        model = DDP(
-            model, device_ids=[local_rank], find_unused_parameters=False
-        )
+        model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
 
     # Enable gradients globally.
     for p in model.parameters():
@@ -1517,16 +1511,13 @@ def run_training(args):
                     if args.log_file:
                         with open(args.log_file, "a") as f:
                             f.write(
-                                f"{update_step},{metrics[0]:.5f},"
-                                f"{metrics[1]:.5f}\n"
+                                f"{update_step},{metrics[0]:.5f}," f"{metrics[1]:.5f}\n"
                             )
 
                     torch.save(
                         {
                             "model_state": (
-                                model.module
-                                if dist.is_initialized()
-                                else model
+                                model.module if dist.is_initialized() else model
                             ).state_dict(),
                             "d": args.d,
                             "rounds": args.rounds,
@@ -1534,10 +1525,7 @@ def run_training(args):
                         },
                         args.output,
                     )
-                if (
-                    metrics[0] >= args.target_high
-                    and metrics[1] >= args.target_low
-                ):
+                if metrics[0] >= args.target_high and metrics[1] >= args.target_low:
                     if rank == 0:
                         print(
                             f"\n[SUCCESS] Target Reached at Step"
@@ -1558,9 +1546,7 @@ def run_training(args):
                     torch.save(
                         {
                             "model_state": (
-                                model.module
-                                if dist.is_initialized()
-                                else model
+                                model.module if dist.is_initialized() else model
                             ).state_dict(),
                             "d": args.d,
                             "rounds": args.rounds,
@@ -1610,9 +1596,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Train AlphaQubit V2 neural decoder on surface codes."
     )
-    parser.add_argument(
-        "--d", type=int, required=True, help="Surface code distance."
-    )
+    parser.add_argument("--d", type=int, required=True, help="Surface code distance.")
     parser.add_argument(
         "--train_p",
         type=float,
@@ -1660,6 +1644,12 @@ if __name__ == "__main__":
         type=str,
         default="",
         help="Path to a checkpoint for transfer learning.",
+    )
+    parser.add_argument(
+        "--hf_resume",
+        type=str,
+        default="",
+        help="Hugging Face repo+file (e.g. 'user/repo/surface/d7.pth') for transfer learning.",
     )
     parser.add_argument(
         "--output",

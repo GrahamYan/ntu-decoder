@@ -14,6 +14,10 @@
 #   bash train.sh --mode transfer --ckpt ./checkpoint_d23.pth --d 25 \
 #       --train_p 0.007 --eval_p 0.007 --target_high 0.986 --target_low 0.986 \
 #       --batch_size 32 --lr 2e-5 --max_steps 150000 --output_dir ./experiments
+#
+#   bash train.sh --mode transfer --hf_ckpt Dreamworldsmile/ntu-surface-code-decoder/surface/d7.pth --d 11 \
+#       --train_p 0.005 --eval_p 0.005 --target_high 0.98 --target_low 0.98 \
+#       --batch_size 32 --lr 3e-5 --max_steps 80000 --output_dir ./experiments
 
 set -euo pipefail
 
@@ -22,6 +26,7 @@ set -euo pipefail
 # ------------------------------------------------------------------
 MODE=""
 CKPT_PATH=""
+HF_CKPT=""
 D=""
 TRAIN_P=""
 EVAL_P=""
@@ -36,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --mode)         MODE="$2"; shift 2 ;;
         --ckpt)         CKPT_PATH="$2"; shift 2 ;;
+        --hf_ckpt)      HF_CKPT="$2"; shift 2 ;;
         --d)            D="$2"; shift 2 ;;
         --train_p)      TRAIN_P="$2"; shift 2 ;;
         --eval_p)       EVAL_P="$2"; shift 2 ;;
@@ -57,8 +63,8 @@ if [[ "$MODE" != "scratch" && "$MODE" != "transfer" ]]; then
     exit 1
 fi
 
-if [[ "$MODE" == "transfer" && -z "$CKPT_PATH" ]]; then
-    echo "Error: --ckpt is required for transfer mode."
+if [[ "$MODE" == "transfer" && -z "$CKPT_PATH" && -z "$HF_CKPT" ]]; then
+    echo "Error: --ckpt or --hf_ckpt is required for transfer mode."
     exit 1
 fi
 
@@ -106,12 +112,16 @@ CURRENT_OUTPUT="${OUTPUT_DIR}/checkpoint_d${D}.pth"
 # ------------------------------------------------------------------
 RESUME_ARG=""
 if [[ "$MODE" == "transfer" ]]; then
-    if [[ ! -f "$CKPT_PATH" ]]; then
+    if [[ -n "$HF_CKPT" ]]; then
+        RESUME_ARG="--hf_resume ${HF_CKPT}"
+        echo "[Transfer] Will download from HF: ${HF_CKPT}"
+    elif [[ -f "$CKPT_PATH" ]]; then
+        RESUME_ARG="--resume ${CKPT_PATH}"
+        echo "[Transfer] Will resume from: ${CKPT_PATH}"
+    else
         echo "Error: Checkpoint not found at ${CKPT_PATH}"
         exit 1
     fi
-    RESUME_ARG="--resume ${CKPT_PATH}"
-    echo "[Transfer] Will resume from: ${CKPT_PATH}"
 else
     echo "[Scratch] Training from randomly initialized weights."
 fi

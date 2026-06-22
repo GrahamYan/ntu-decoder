@@ -18,6 +18,7 @@ from transformer import (
     AlphaQubitV2,
     FullMapper,
     OnlineSurfaceCodeDataset,
+    download_from_hf,
 )
 
 
@@ -75,9 +76,7 @@ def run_single_eval(
 
     model.eval()
     dataset = OnlineSurfaceCodeDataset(d, d, eval_p, bs, is_eval=True)
-    dataloader = DataLoader(
-        dataset, batch_size=None, num_workers=0, pin_memory=True
-    )
+    dataloader = DataLoader(dataset, batch_size=None, num_workers=0, pin_memory=True)
 
     local_errors = 0
     processed = 0
@@ -135,8 +134,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ckpt_path",
         type=str,
-        required=True,
+        default="",
         help="Path to the model checkpoint (.pth file).",
+    )
+    parser.add_argument(
+        "--hf_repo",
+        type=str,
+        default="",
+        help="Hugging Face repo (e.g. 'user/repo') to download checkpoint from.",
+    )
+    parser.add_argument(
+        "--hf_filename",
+        type=str,
+        default="",
+        help="Filename in HF repo (default: surface/d{d}.pth).",
     )
     parser.add_argument(
         "--eval_p",
@@ -151,6 +162,15 @@ if __name__ == "__main__":
         help="Per-GPU batch size (default: 256).",
     )
     args = parser.parse_args()
+
+    # Resolve checkpoint path from Hugging Face if requested.
+    if args.hf_repo:
+        hf_filename = args.hf_filename if args.hf_filename else f"surface/d{args.d}.pth"
+        print(f"Downloading from HF: {args.hf_repo}/{hf_filename}")
+        args.ckpt_path = download_from_hf(args.hf_repo, hf_filename)
+
+    if not args.ckpt_path:
+        parser.error("Either --ckpt_path or --hf_repo must be provided.")
 
     mp.set_start_method("spawn", force=True)
     world_size = torch.cuda.device_count()
@@ -198,7 +218,4 @@ if __name__ == "__main__":
             f"{ler:.8f},{ler_per_round:.8f}\n"
         )
 
-    print(
-        f"[Complete] d={args.d} LER: {ler:.6f} |"
-        f" Results saved to {csv_file}"
-    )
+    print(f"[Complete] d={args.d} LER: {ler:.6f} |" f" Results saved to {csv_file}")
