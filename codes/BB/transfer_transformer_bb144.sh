@@ -4,12 +4,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT_DIR"
 
-SOURCE_CKPT="${SOURCE_CKPT:-}"
+SOURCE_CKPT="${SOURCE_CKPT:-${1:-}}"
 if [[ -z "$SOURCE_CKPT" ]]; then
   SOURCE_CKPT="$(find experiments -path '*/ckpts/bb72_transformer_best.pt' -type f 2>/dev/null | sort | tail -n 1 || true)"
 fi
 if [[ -z "$SOURCE_CKPT" ]]; then
-  echo "Set SOURCE_CKPT=/path/to/bb72_transformer_checkpoint.pt" >&2
+  echo "No BB72 checkpoint found. Run train_transformer_bb72.sh first, or pass a checkpoint:" >&2
+  echo "  SOURCE_CKPT=/path/to/bb72_transformer_best.pt bash transfer_transformer_bb144.sh" >&2
+  exit 1
+fi
+if [[ ! -f "$SOURCE_CKPT" ]]; then
+  echo "SOURCE_CKPT not found: $SOURCE_CKPT" >&2
   exit 1
 fi
 
@@ -30,6 +35,9 @@ EVAL_SAMPLES="${EVAL_SAMPLES:-20000}"
 
 echo "SOURCE_CKPT=$SOURCE_CKPT"
 echo "OUT_ROOT=$OUT_ROOT"
+echo "MAX_STEPS=$MAX_STEPS LR_SCHEDULE_STEPS=$LR_SCHEDULE_STEPS"
+echo "BATCH_SIZE=$BATCH_SIZE TARGET_BS=$TARGET_BS LR=$LR WARMUP=$WARMUP"
+echo
 
 torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" "$ROOT_DIR/transformer.py" train \
   --torus_l 12 --torus_m 6 --rounds 12 --p 0.005 \

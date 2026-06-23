@@ -742,6 +742,15 @@ class LogicalBasis:
     stabilizer_coeffs: np.ndarray  # [K, lm], reps = T @ code.lz + C @ H_Z
 
 
+
+@dataclass(frozen=True)
+class _RepOption:
+    support: tuple[int, ...]
+    coord: tuple[int, ...]
+    weight: int
+    transform_weight: int
+    stab_weight: int
+
 def gf2_rank(matrix: np.ndarray) -> int:
     a = np.asarray(matrix, dtype=np.uint8).copy() % 2
     if a.ndim == 1:
@@ -801,6 +810,96 @@ def _raw_logical_rep(lz: np.ndarray, coord: np.ndarray) -> np.ndarray:
     return (np.asarray(coord, dtype=np.uint8) @ np.asarray(lz, dtype=np.uint8)) % 2
 
 
+def _rep_option_from_vector(code, rep: np.ndarray) -> _RepOption | None:
+    hx = np.asarray(code.hx, dtype=np.uint8) % 2
+    hz = np.asarray(code.hz, dtype=np.uint8) % 2
+    lz = np.asarray(code.lz, dtype=np.uint8) % 2
+    rep = np.asarray(rep, dtype=np.uint8) % 2
+    if np.any((hx @ rep) % 2):
+        return None
+    coeff = solve_rows(np.vstack([hz, lz]).astype(np.uint8), rep)
+    if coeff is None:
+        return None
+    coord = coeff[hz.shape[0]:].astype(np.uint8)
+    if coord.sum() == 0:
+        return None
+    support = tuple(np.flatnonzero(rep).astype(int).tolist())
+    return _RepOption(
+        support=support,
+        coord=tuple(coord.astype(int).tolist()),
+        weight=int(rep.sum()),
+        transform_weight=int(coord.sum()),
+        stab_weight=int(coeff[:hz.shape[0]].sum()),
+    )
+
+
+def _translate_logical_vector(rep: np.ndarray, l: int, m: int, di: int, dj: int) -> np.ndarray:
+    lm = l * m
+    out = np.zeros_like(rep)
+    for idx in np.flatnonzero(rep):
+        side = int(idx >= lm)
+        local = int(idx - side * lm)
+        i, j = divmod(local, m)
+        out[side * lm + ((i + di) % l) * m + ((j + dj) % m)] ^= 1
+    return out
+
+
+def _reduce_by_stabilizers(rep: np.ndarray, hz: np.ndarray, max_passes: int = 200) -> np.ndarray:
+    cur = np.asarray(rep, dtype=np.uint8).copy() % 2
+    rows = np.asarray(hz, dtype=np.uint8) % 2
+    row_weights = rows.sum(axis=1).astype(np.int32)
+    for _ in range(max_passes):
+        overlaps = rows.astype(np.int32) @ cur.astype(np.int32)
+        deltas = row_weights - 2 * overlaps
+        best = int(np.argmin(deltas))
+        if int(deltas[best]) >= 0:
+            break
+        cur ^= rows[best]
+    return cur
+
+
+def _light_translated_representatives(code, l: int, m: int) -> dict[tuple[int, ...], list[_RepOption]]:
+    lz = np.asarray(code.lz, dtype=np.uint8) % 2
+    out: dict[tuple[int, ...], list[_RepOption]] = {}
+    seed_weight = int(lz.sum(axis=1).min())
+    seen: set[tuple[int, ...]] = set()
+    for row in lz:
+        if int(row.sum()) > seed_weight:
+            continue
+        for di in range(l):
+            for dj in range(m):
+                opt = _rep_option_from_vector(code, _translate_logical_vector(row, l, m, di, dj))
+                if opt is None or opt.support in seen:
+                    continue
+                seen.add(opt.support)
+                out.setdefault(opt.coord, []).append(opt)
+    return out
+
+
+def _select_representative(code,
+                           coord: np.ndarray,
+                           translated_options: dict[tuple[int, ...], list[_RepOption]]) -> np.ndarray:
+    hz = np.asarray(code.hz, dtype=np.uint8) % 2
+    lz = np.asarray(code.lz, dtype=np.uint8) % 2
+    coord = np.asarray(coord, dtype=np.uint8) % 2
+    target_coord = tuple(coord.astype(int).tolist())
+
+    options: list[_RepOption] = []
+    base = _raw_logical_rep(lz, coord)
+    reduced = _reduce_by_stabilizers(base, hz)
+    base_option = _rep_option_from_vector(code, reduced)
+    if base_option is not None and base_option.coord == target_coord:
+        options.append(base_option)
+    options.extend(translated_options.get(target_coord, []))
+
+    if not options:
+        raise RuntimeError("failed to build default BB output representative")
+    best = min(options, key=lambda x: (x.weight, x.transform_weight, x.stab_weight, x.support))
+    rep = np.zeros(code.N, dtype=np.uint8)
+    rep[list(best.support)] = 1
+    return rep
+
+
 def _build_logical_basis(
     mapper,
     representatives: np.ndarray,
@@ -832,8 +931,8 @@ def build_default_observables(mapper) -> LogicalBasis:
     code = mapper.code
     if code.K != 12:
         raise ValueError("default BB output convention expects K=12")
+    info = mapper.mapping_info
     unit = np.eye(code.K, dtype=np.uint8)
-    lz = np.asarray(code.lz, dtype=np.uint8) % 2
     coords_arr = np.stack(
         [
             *unit[:6],
@@ -845,7 +944,10 @@ def build_default_observables(mapper) -> LogicalBasis:
             unit[9] ^ unit[10] ^ unit[11],
         ]
     )
-    representatives = np.stack([_raw_logical_rep(lz, row) for row in coords_arr])
+    translated_options = _light_translated_representatives(code, info.l, info.m)
+    representatives = np.stack(
+        [_select_representative(code, row, translated_options) for row in coords_arr]
+    )
     return _build_logical_basis(
         mapper,
         representatives,
