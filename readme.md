@@ -1,4 +1,4 @@
-# Efficient Foundation Decoders for Fault-Tolerant Quantum Computing
+# Efficient foundation decoders for fault-tolerant quantum computing
 
 [![Project Page](https://img.shields.io/badge/Project-Page-blue)](https://grahamyan.github.io/ntu-decoder/)
 [![Hugging Face Hub](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-yellow)](https://huggingface.co/Dreamworldsmile/ntu-surface-code-decoder)
