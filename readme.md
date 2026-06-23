@@ -254,7 +254,7 @@ Shanchuan Li<sup>1, 2</sup>,
 Shiyi Xiao<sup>1, 3</sup>,
 Pengyue Ma<sup>1</sup>,
 Hanyan Cao<sup>4</sup>,
-[Feng Pan](https://scholar.google.com/citations?user=Vp6hFhUAAAAJ)<sup>4,\*</sup>,
+[Feng Pan](https://fanerst.github.io/)<sup>4,\*</sup>,
 [Yuxuan Du](https://yuxuan-du.github.io)<sup>1,\*</sup>
 
 <sup>1</sup> College of Computing and Data Science, Nanyang Technological University, Singapore<br>
