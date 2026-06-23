@@ -336,7 +336,7 @@
             <div class="method-flow">
               <div class="flow-step">
                 <span>01</span>
-                <h4>Scalable transformer embedding model (STEM)</h4>
+                <h4>Relative embedding</h4>
                 <p>
                   Raw sparse binary syndromes are mapped into a continuous latent space via discrete topological lookup tables.
                   For both geometric surface codes and algebraic qLDPC geometries, the embedding vocabulary is strictly derived from local Tanner graph connectivity complexes and generator intersection matrices. 
@@ -383,50 +383,54 @@
                 NTU-Neural-BP instantiates the framework using a parameterized graph neural network (GNN) tailored for localized physical error inference. 
                 Operating directly over the intrinsic bipartite Tanner graph of the QEC code, this paradigm replaces standard classical belief propagation (BP) approximations with learnable, non-linear message passing. 
                 By capturing highly localized correlations, NTU-Neural-BP actively dampens the severe message oscillations and convergence failures traditionally triggered by degenerate short loops within the hypergraph, 
-                directly outputting physical fault probabilities across individual data qubits.
+                directly outputting physical fault probabilities across individual error nodes.
               </p>
             </div>
 
             <div class="io-strip" aria-label="NeuralBP input and output">
               <div>
                 <span>Input</span>
-                <strong>{0,1}<sup>d x m<sub>d</sub></sup></strong>
+                <strong>{0,1}<sup>d &times; m<sub>d</sub></sup></strong>
                 <small><code>m<sub>d</sub></code> detectors per round</small>
               </div>
               <div>
                 <span>Output</span>
-                <strong>[0,1]<sup>n</sup></strong>
-                <small>physical error probabilities</small>
+                <strong>[0,1]<sup>N<sub>err</sub></sup></strong>
+                <small>error-variable probabilities</small>
               </div>
             </div>
-
+            
             <div class="method-detail-grid">
               <div>
-                <h4>Number of iteration</h4>
+                <h4>Message-passing depth</h4>
                 <p>
-                  To ensure optimization stability, we employ an iterative depth curriculum that dynamically expands the unrolling depth up to <code>N<sub>iter</sub> = 2d</code> rounds of message passing. 
-                  This structured curriculum enables the network to master localized error tracking in the early stages before progressively learning complex, long-range loop neutralizations across the expanded boundaries.                
+                  NTU-Neural-BP unrolls a fixed number of neural BP iterations on the detector-error graph.
+                  In our experiments, the depth is set to <code>N<sub>iter</sub> = 2d</code>, matching the code distance and providing sufficient propagation steps for information to circulate through the sparse decoding graph.
                 </p>
               </div>
+            
               <div>
-                <h4>Message passing</h4>
+                <h4>Relation-tied message passing</h4>
                 <p>
-                  The GNN backbone strictly mirrors the code's topology, alternating non-linear check-to-variable and variable-to-check updates via parameterized aggregation. 
-                  Because these parametric calculations are confined to local neighborhoods, the trained weights are strictly invariant to the global graph size—enabling seamless transfer across distance updates without coordinate engineering or structural modifications.
+                  The model exchanges messages between detector nodes and error-variable nodes.
+                  The same neural message and update functions are shared across graph locations, so the learned rule depends on local graph relations rather than absolute node or edge indices.
+                  When the code size changes, the sparse graph tensors are regenerated while the learned update rules are transferred.
                 </p>
               </div>
+            
               <div>
                 <h4>Parameterized aggregation</h4>
                 <p>
-                  Learnable aggregation weights control how strongly neighboring
-                  messages contribute, adapting BP to code-specific correlations.
+                  Neural message updates replace the fixed analytic BP rule with learnable aggregation and state-update functions.
+                  These modules adapt BP-style inference to short cycles, degeneracy, and correlated detector patterns while preserving the sparse graph structure supplied by the detector error model.
                 </p>
               </div>
+            
               <div>
                 <h4>Physical readout</h4>
                 <p>
-                  The output is a per-data-qubit error probability map, which can
-                  be converted into a correction before checking logical status.
+                  The network predicts probabilities over <code>N<sub>err</sub></code> error variables in the decoding graph.
+                  These error-variable beliefs are mapped through fixed logical maps, which convert the inferred error configuration into predicted logical flips.
                 </p>
               </div>
             </div>
