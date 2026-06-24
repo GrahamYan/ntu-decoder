@@ -5,3 +5,4 @@ main.tex
 *.pth
 codes/
 paper-assistant-worker/node_modules/
+webpage/paper-assistant-worker/node_modules/
